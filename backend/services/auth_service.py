@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -9,16 +9,21 @@ from backend.core.config import settings
 from backend.models.database import User
 from backend.services.audit_logger import AuditLogger
 
-# password hash
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt only looks at the first 72 bytes, newer versions refuse longer input, so cut it here
+# (the hashes are the usual $2b$ format, so ones made earlier still verify)
+def _pw(password: str) -> bytes:
+    return password.encode("utf-8")[:72]
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_pw(plain), hashed.encode("utf-8"))
+    except ValueError:   # not a valid bcrypt hash
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_pw(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def get_user_by_username(db: Session, username: str) -> Optional[User]:

@@ -5,10 +5,6 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    ignore:
-      # passlib 1.7.4 breaks on bcrypt 5, so stay on 4.x until passlib is replaced
-      - dependency-name: bcrypt
-        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

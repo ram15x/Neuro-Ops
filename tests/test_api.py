@@ -50,3 +50,15 @@ def test_report_and_postmortem_endpoints():
     r = client.get("/api/v1/engine/report")
     assert r.status_code == 200 and r.json()["simulated"] is True
     assert client.get("/api/v1/engine/incidents/99999/postmortem").status_code == 404
+
+
+def test_password_hashing_round_trip_and_old_hashes():
+    from backend.services.auth_service import get_password_hash, verify_password
+    h = get_password_hash("a-long-enough-password")
+    assert verify_password("a-long-enough-password", h) and not verify_password("wrong", h)
+    assert not verify_password("anything", "not-a-hash")
+    long = "x" * 100                                  # over bcrypt's 72 byte limit, must not raise
+    assert verify_password(long, get_password_hash(long))
+    # a hash made earlier by passlib still verifies
+    old = "$2b$12$TBn2GfrBlrl50dR9wsHK3.BwZ6jvBsT3l3TcB8rvh9ubNtEdU7Dpa"
+    assert verify_password("old-passlib-pass", old) and not verify_password("nope", old)
