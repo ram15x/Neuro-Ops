@@ -27,6 +27,10 @@ CloudWatch) forecast   the trouble  + mode     or AWS      work?
 
 - Signals: an anomaly score (the default detector, `hybrid_seasonal`, averages a z-score, an Isolation Forest and a time-of-day band) plus a time-to-breach forecast for slow ramps like disks and memory leaks.
 - Logs: lines are grouped by shape (numbers, ids and hosts masked), and the clusters that are new or much louder than the day before are attached to the incident. See [docs/logs.md](docs/logs.md).
+- Changes: if a deploy shows up in the logs in the two hours before an incident, the alert and the card say so (it only works if your service logs its releases).
+- Reports: `/api/v1/engine/report` gives time open, time to first action and how many incidents the engine fixed by itself. `/api/v1/engine/incidents/{id}/postmortem` writes a markdown draft from the audit log, with the root-cause section left for a person.
+- Policy: guardrails and fix ladders live in [config/policy.yaml](config/policy.yaml). A wrong file stops the app at startup with the reason, and you can add approval requirements but cannot remove the built-in ones. If the file and `ENGINE_MODE` disagree, the safer mode wins.
+- Metrics: `/metrics` serves Prometheus text (incidents, actions, checks, alerts, mode, tick time) so you can watch the engine with Grafana.
 - Alerts: when the engine runs out of safe fixes, needs an approval, or sees a critical incident in shadow mode, it sends one message per incident (SNS, Slack, or a recorder in the demo) and one more when it resolves. An hourly cap keeps it from becoming noise.
 - Diagnosis: plain rules. A CPU rise across a whole tier is load, on one box it is a runaway process, and so on.
 - Policy: three modes. Shadow records what it would do. Approval waits for a person on every action. Auto runs what the guardrails allow and asks for the rest.
@@ -65,6 +69,8 @@ Full tables are in [docs/scorecard.md](docs/scorecard.md). The short version:
 - The real EC2 capture I made in March (`data/real_training_data.csv`) is about 14 hours of points on one instance, too short to score.
 - The old v2 endpoints are still in `backend/api/` but are off unless `LEGACY_API_ENABLED=true`. Some were built on a `cpu > 80` label, which is circular. See [docs/model-card.md](docs/model-card.md).
 - `infra/terraform` has never been applied. CI only validates it.
+- The postmortem draft knows what happened and when, not why.
+- `/metrics` has no login. It holds counts only, but put it behind your network rules.
 - Auth is a single admin user. Fine for a demo, not for a team.
 
 ## Layout

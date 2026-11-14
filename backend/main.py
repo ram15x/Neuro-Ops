@@ -116,6 +116,14 @@ async def root():
 async def health_check():
     return {"status": "healthy", "version": settings.APP_VERSION}
 
+@app.get("/metrics")
+async def metrics():
+    """Prometheus scrape endpoint for the engine. Counts only, nothing about instances."""
+    from fastapi.responses import PlainTextResponse
+    from backend.api.engine import metrics_text
+    return PlainTextResponse(metrics_text(), media_type="text/plain; version=0.0.4")
+
+
 @app.get("/ready")
 async def ready():
     """readiness: can the app reach its database"""

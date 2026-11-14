@@ -69,6 +69,9 @@ def build_alert(inc, why, trail, now, simulated, dashboard_url=None, resolved=Fa
     elif not resolved:
         lines += ["", "The engine has not changed anything on this target."]
 
+    if inc.change:
+        lines += ["", f"Possible trigger: something was deployed {inc.change['minutes_before']} minutes before this started "
+                      f"(\"{inc.change['text']}\"). Check that release first."]
     if inc.logs:
         lines += ["", "Log lines that are new or louder than usual:"]
         for c in inc.logs[:3]:

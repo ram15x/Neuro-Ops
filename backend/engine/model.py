@@ -56,6 +56,7 @@ class Incident:
     attempts: dict = field(default_factory=dict)   # action -> how many times tried
     evidence: list = field(default_factory=list)
     last_seen: datetime = None
+    change: dict = None        # a deploy seen in the logs shortly before this started: {at, minutes_before, text}
     logs: list = field(default_factory=list)   # log clusters that are new or louder, if a log source exists
 
 

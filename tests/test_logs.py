@@ -72,3 +72,21 @@ def test_cloudwatch_logs_source_reads_a_stream():
         got = src.logs("i-abc", base - pd.Timedelta(hours=1), base + pd.Timedelta(hours=1))
         assert [m for _, m in got] == ["ERROR boom 0", "ERROR boom 1", "ERROR boom 2"]
         assert CloudWatchSource("us-east-1").logs("i-abc", 0, 1) == []
+
+
+def test_recent_change_finds_the_latest_deploy_before_the_start():
+    from backend.logs.cluster import recent_change
+    t = pd.Timestamp("2026-03-10 12:00")
+    lines = [(t - pd.Timedelta(minutes=90), "INFO deploying release v1.4.1"),
+             (t - pd.Timedelta(minutes=25), "INFO deploying release v1.4.2"),
+             (t - pd.Timedelta(minutes=5), "GET /health 200 3ms"),
+             (t + pd.Timedelta(minutes=5), "INFO deploying release v1.4.3")]   # after the start, not a trigger
+    got = recent_change(lines, t)
+    assert got["minutes_before"] == 25 and "v1.4.2" in got["text"]
+
+
+def test_a_deploy_long_before_is_not_blamed():
+    from backend.logs.cluster import recent_change
+    t = pd.Timestamp("2026-03-10 12:00")
+    assert recent_change([(t - pd.Timedelta(hours=5), "INFO deploying release v1.0.0")], t) is None
+    assert recent_change([], t) is None

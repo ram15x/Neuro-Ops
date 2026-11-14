@@ -530,6 +530,7 @@ function drawRail(now) {
       <span class="why">${esc((inc.evidence || [])[0] || '')}</span>
       <span class="verdict ${cls}">${text}</span>
       ${['needs_approval', 'blocked', 'person', 'notify', 'shadow'].includes(s.verdict) && s.reasons.length ? `<ul class="reasons">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+      ${inc.change ? `<span class="change">A release went out ${inc.change.minutes_before} min before this started: ${esc(inc.change.text)}</span>` : ''}
       ${inc.logs && inc.logs.length ? `<ul class="lines" aria-label="Log lines that are new or louder than usual">${inc.logs.slice(0, 3).map((c) => `<li class="${c.level}${c.new ? ' fresh' : ''}"><i></i><code>${esc(c.template)}</code><em>${c.new ? 'new' : c.in_window + ' now, ' + c.in_baseline + ' in a day'}</em></li>`).join('')}</ul>` : ''}`;
     if (said) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'peek';
@@ -571,14 +572,15 @@ function drawRail(now) {
       case 'rejected': text = `Rejected by ${e.by === 'evaluation-auto-approver' ? 'the stand-in operator' : e.by}: ${a} on ${who}`; break;
       case 'escalated': text = `Handed ${who} to a person`; break;
       case 'rolled_back': text = `Put back: ${a} on ${who}, the trouble is over`; break;
-      case 'incident_resolved': text = `Closed: ${CAUSE[e.cause] || e.cause} on ${who}, ${e.how}`; break;
+      case 'incident_resolved': text = `Closed: ${CAUSE[e.cause] || e.cause} on ${who}, ${e.how}` + (S.cur.postmortems && S.cur.postmortems[e.incident] ? ' (postmortem)' : ''); break;
       case 'reopened': text = `Back again: ${CAUSE[e.cause] || e.cause} on ${who}`; break;
       case 'notified': text = e.ok ? (e.channel === 'demo (not sent)' ? `Alert drafted: ${e.subject}` : `Alert sent by ${e.channel}: ${e.subject}`) : `Alert not sent: ${e.error || 'held back'}`; break;
       case 'mode_changed': text = `Mode changed from ${e.old} to ${e.new} by ${e.by}`; break;
       default: text = e.type;
     }
     const dt = when(e.i);
-    return `<li${e.text ? ` class="clickable" data-n="${n}" title="Open the message"` : ''}><time>${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })} ${hhmm(dt)}</time><span class="${cls}">${esc(text)}</span></li>`;
+    const pm = e.type === 'incident_resolved' && S.cur.postmortems && S.cur.postmortems[e.incident];
+    return `<li${e.text || pm ? ` class="clickable" data-n="${n}" title="${pm ? 'Open the postmortem draft' : 'Open the message'}"` : ''}><time>${dt.getUTCDate()} ${dt.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })} ${hhmm(dt)}</time><span class="${cls}">${esc(text)}</span></li>`;
   }).join('') || '<li><time></time><span>Nothing yet.</span></li>';
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -609,6 +611,15 @@ function chrome() {
   }
   $('playIcon').setAttribute('d', S.playing ? 'M5 3h4v14H5zM11 3h4v14h-4z' : 'M6 3l11 7-11 7z');
   $('play').setAttribute('aria-label', S.playing ? 'Pause' : 'Play');
+  const rel = d.reliability, box = $('summary');
+  box.hidden = !rel;
+  if (rel) {
+    const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    $('facts').innerHTML = row('Incidents', rel.incidents) + row('Fixed by the engine', rel.fixed_by_engine) +
+      row('Handed to a person', rel.handed_to_person) + row('Average time open', rel.mean_minutes_open == null ? 'n/a' : rel.mean_minutes_open + ' min') +
+      row('Average time to first action', rel.mean_minutes_to_first_action == null ? 'none taken' : rel.mean_minutes_to_first_action + ' min') +
+      row('Alerts drafted', rel.alerts_sent);
+  }
   railKey = '';
   dirty();
 }
@@ -725,10 +736,21 @@ function showAlert(e) {
     : `Sent through ${e.channel}.`;
   $('alertDlg').showModal();
 }
+function showPostmortem(id) {
+  $('pmText').textContent = S.cur.postmortems[id];
+  $('pmDlg').showModal();
+}
+$('pmClose').addEventListener('click', () => $('pmDlg').close());
+$('pmCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('pmText').textContent); $('pmCopy').textContent = 'Copied'; setTimeout(() => { $('pmCopy').textContent = 'Copy'; }, 1500); }
+  catch (e) { $('pmCopy').textContent = 'Select the text and copy'; }
+});
 $('alertClose').addEventListener('click', () => $('alertDlg').close());
 $('log').addEventListener('click', (ev) => {
   const li = ev.target.closest('li[data-n]');
-  if (li && S.logEvents[+li.dataset.n]) showAlert(S.logEvents[+li.dataset.n]);
+  const e = li && S.logEvents[+li.dataset.n];
+  if (!e) return;
+  if (e.type === 'incident_resolved') showPostmortem(e.incident); else showAlert(e);
 });
 // a pointer over the overview shows the time under it
 scrub.addEventListener('mousemove', (ev) => {

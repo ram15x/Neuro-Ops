@@ -42,3 +42,16 @@ def test_stored_audit_events_come_back_from_history():
     r._store_event({"ts": "2026-03-10T12:00:00", "type": "mode_changed", "simulated": True, "old": "shadow", "new": "auto"})
     got = client.get(f"/api/v1/engine/history?run={r.seed}&limit=5").json()["events"]
     assert got[0]["type"] == "mode_changed" and got[0]["new"] == "auto"
+
+
+def test_metrics_endpoint_speaks_prometheus():
+    body = client.get("/metrics").text
+    for name in ("neuroops_incidents_open", "neuroops_mode", "neuroops_tick_seconds", "neuroops_alerts_total"):
+        assert f"# TYPE {name} " in body
+    assert 'neuroops_mode{mode="shadow"} 1' in body
+
+
+def test_report_and_postmortem_endpoints():
+    r = client.get("/api/v1/engine/report")
+    assert r.status_code == 200 and r.json()["simulated"] is True
+    assert client.get("/api/v1/engine/incidents/99999/postmortem").status_code == 404

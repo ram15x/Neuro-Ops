@@ -125,6 +125,7 @@ SIMULATED, seeds 21 to 23, which were not used to calibrate thresholds. The simu
 |---|---|---|
 | Faults injected | 48 | 48 |
 | Faults noticed | 48 | 48 |
+| Average minutes from fault start to noticed | 45 | 44 |
 | Diagnosed as the right cause | 48 | 48 |
 | Ramps that reached the danger line | 18/18 | 0/18 |
 | Total fault time (hours) | 209 | 65 |
@@ -155,6 +156,7 @@ The clean numbers are close to perfect because the faults are well separated and
 |---|---|---|
 | Faults injected | 54 | 54 |
 | Faults noticed | 40 | 41 |
+| Average minutes from fault start to noticed | 76 | 74 |
 | Diagnosed as the right cause | 34 | 35 |
 | Ramps that reached the danger line | 18/18 | 1/18 |
 | Total fault time (hours) | 217 | 91 |

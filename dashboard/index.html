@@ -70,6 +70,10 @@
       <h2>Open now</h2>
       <div id="open" class="cards"></div>
     </section>
+    <section id="summary" hidden>
+      <h2>The whole run in numbers</h2>
+      <dl class="facts" id="facts"></dl>
+    </section>
     <section>
       <h2>What the engine did</h2>
       <ol id="log" class="log"></ol>
@@ -103,6 +107,15 @@
       <button type="submit">Sign in</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="pmDlg" class="wide">
+  <article>
+    <h2>Postmortem draft</h2>
+    <pre id="pmText"></pre>
+    <p>Written from the engine's audit log. It knows what happened and when, not why. The last section is for a person.</p>
+    <div class="row"><button type="button" class="quiet" id="pmCopy">Copy</button><button type="button" id="pmClose">Close</button></div>
+  </article>
 </dialog>
 
 <dialog id="alertDlg" class="wide">

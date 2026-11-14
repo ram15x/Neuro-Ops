@@ -43,7 +43,7 @@ def snapshot(fleet, engine, lo, hi, scenario="clean", truth=True):
                  "start": t0.isoformat(), "step_minutes": 5, "steps": hi - lo, "seed": fleet.seed},
         "instances": [{"id": i.id, "role": i.role, "type": i.itype} for i in engine.instances],
         "metrics": metrics,
-        "incidents": [{**{k: v for k, v in as_dict(inc).items() if k in ("id", "cause", "scope", "target", "severity", "evidence", "logs")},
+        "incidents": [{**{k: v for k, v in as_dict(inc).items() if k in ("id", "cause", "scope", "target", "severity", "evidence", "logs", "change")},
                        "opened_i": idx(inc.opened), "closed_i": idx(inc.closed)} for inc in engine.incidents
                       if idx(inc.opened) < hi - lo and (inc.closed is None or idx(inc.closed) >= 0)],
         "audit": events,

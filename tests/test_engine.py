@@ -178,3 +178,24 @@ def test_incidents_carry_the_log_lines_that_stood_out():
     for i in eng.incidents:
         for c in i.logs:
             assert c["score"] >= 3 and c["in_window"] >= 1
+
+
+def test_report_and_postmortem_come_from_the_audit_log():
+    from backend.engine.report import postmortem, reliability
+    eng, _ = _run_with_alerts("auto")
+    now = eng.source.ts[eng.warm + 288 * 5 - 1].to_pydatetime()
+    rel = reliability(eng, now)
+    assert rel["incidents"] == len(eng.incidents) and rel["simulated"] is True
+    assert rel["resolved"] + rel["open"] == rel["incidents"]
+    done = next(i for i in eng.incidents if i.closed)
+    text = postmortem(eng, done, now)
+    for want in ("# Postmortem draft", "SIMULATED", "## Timeline", "## For a person to fill in", "Root cause"):
+        assert want in text
+
+
+def test_prometheus_text_counts_what_happened():
+    from backend.engine.metrics import render
+    eng, _ = _run_with_alerts("auto")
+    body = render(eng, 5, 0.1, 5)
+    assert f"neuroops_incidents_open {len(eng.open)}" in body
+    assert 'neuroops_actions_total{action=' in body

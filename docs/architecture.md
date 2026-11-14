@@ -18,6 +18,8 @@ Every step is written to the audit log with its reason, including each alert.
 
 ## Policy
 
+Guardrails and ladders are read from `config/policy.yaml` (`backend/engine/policy_file.py`). The loader refuses unknown keys, unknown actions, a ladder that does not end in notify, and anything that would remove the built-in approval rule for moving a host or switching credit mode.
+
 - Modes: shadow (record only), approval (a person answers every request), auto.
 - Ladders per cause, for example memory leak: restart the service, then reboot, then tell a person.
 - Guardrails: 30 minute cooldown per target, at most 4 automatic actions an hour, the `db` tier is protected, scale-out is capped at 2 extra instances, and the engine watches a new incident for 30 minutes before acting on CPU contention.
@@ -30,6 +32,10 @@ Eight are compared in `docs/scorecard.md`. The default, `hybrid_seasonal`, avera
 ## Alerts
 
 `backend/engine/notify.py`. The message says what, where, for how long, why a person is being told, what the engine already tried and whether it worked, the log clusters, and a first thing to check for that cause. Channels: SNS, a Slack webhook, and a recorder (the simulated demo uses only the recorder). Rules: one message per incident per kind, at most 10 an hour (the rest are counted in the next message), and a dead channel never stops the engine.
+
+## Reports and metrics
+
+`backend/engine/report.py` derives per-incident rows (time open, time to first action, fixed by the engine, handed to a person), a summary, and a markdown postmortem draft, all from the audit log. `backend/engine/metrics.py` renders Prometheus text for `/metrics`.
 
 ## Storage
 

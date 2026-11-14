@@ -15,6 +15,7 @@ from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
 from backend.engine.export import snapshot
 from backend.engine.notify import Notifier, RecordingNotifier
+from backend.engine.report import postmortem, reliability
 from backend.engine.policy import PolicyConfig
 from backend.engine.sources import SimSource
 from backend.sim.aws_fleet import build_fleet
@@ -31,6 +32,9 @@ def record(scenario, mode):
                  auto_approve_after=3 if mode == "auto" else None).run()
     snap = snapshot(fleet, eng, eng.warm - LEAD_IN, fleet.n, scenario)
     snap["meta"]["watching_from"] = LEAD_IN
+    end = fleet.ts[fleet.n - 1].to_pydatetime()
+    snap["postmortems"] = {str(i.id): postmortem(eng, i, end) for i in eng.incidents if i.closed and i.cause != "memory_step"}
+    snap["reliability"] = reliability(eng, end)
     snap["meta"]["operator"] = "stand-in operator approves after 15 minutes" if mode == "auto" else None
     score = _score(fleet, eng)
     snap["summary"] = {k: v for k, v in score.items() if k != "by_kind"}
