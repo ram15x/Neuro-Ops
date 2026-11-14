@@ -18,6 +18,22 @@ jobs:
       # tests use sqlite and in-memory redis, see tests/conftest.py
       - run: pytest -q --cov=backend --cov-report=term
 
+  scorecard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      # reruns the detector comparison and fails if the default detector got worse
+      - run: python -m eval.scorecard --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scorecard
+          path: docs/scorecard.md
+
   docker:
     runs-on: ubuntu-latest
     steps:

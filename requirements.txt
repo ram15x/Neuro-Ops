@@ -10,14 +10,15 @@ pandas==3.1.1
 passlib==1.7.4
 psutil==7.2.2
 psycopg2-binary==2.9.13
-pydantic==2.14.3
 pydantic-settings==2.16.3
+pydantic==2.14.3
 python-dotenv==1.2.4
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.33
 redis==8.1.0
 requests==2.34.2
 scikit-learn==1.9.1
+scipy==1.18.1
 shap==0.54.1
 slowapi==0.1.10
 SQLAlchemy==2.1.8
