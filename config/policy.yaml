@@ -1,0 +1,28 @@
+# How the engine is allowed to behave. This file is the built-in default, copy it and change it.
+# Point POLICY_FILE at your copy. It is checked on startup and a bad file stops the app with a clear message.
+
+# shadow: decide and record only. approval: a person answers every action. auto: run what the guardrails allow.
+mode: shadow
+
+guardrails:
+  cooldown_minutes: 30           # no second action on the same target inside this time
+  max_auto_actions_per_hour: 4   # across the whole fleet
+  observe_minutes: 30            # how long to watch CPU contention before moving a host
+  max_scale_out: 2               # extra instances the engine may add to one tier
+  protected_tiers: [db]          # disruptive actions here always wait for a person
+
+# Actions that must always wait for a person, on top of the two the engine hard-codes
+# (migrate_host and enable_unlimited). You can add to this list, you cannot remove those two.
+always_ask: []
+
+# Per cause, the fixes to try in order. Ends with notify so a person is told when they run out.
+# actions: disk_cleanup, restart_service, reboot, scale_out, migrate_host, enable_unlimited, observe, notify, none
+playbook:
+  disk_fill: [disk_cleanup, notify]
+  memory_leak: [restart_service, reboot, notify]
+  runaway_process: [restart_service, reboot, notify]
+  traffic_surge: [scale_out, scale_out, notify]
+  cpu_contention: [observe, migrate_host, notify]
+  credit_exhaustion: [enable_unlimited, notify]
+  network_loss: [notify]
+  memory_step: [none]

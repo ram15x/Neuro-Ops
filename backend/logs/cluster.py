@@ -133,3 +133,24 @@ def rising(window_lines, baseline_lines, top=5, baseline_scale=1.0, min_ratio=3.
                         new=b == 0, score=round(ratio * weight, 2)))
     out.sort(key=lambda x: -x["score"])
     return out[:top]
+
+
+_DEPLOY = re.compile(r"\b(deploying|deployed|rolling out|rollout|release v?\d)", re.I)
+
+
+def recent_change(lines, started, within_minutes=120):
+    """
+    The latest line that looks like a deploy in the window before `started`
+    (a list of (time, text)). Matching is by wording, so it only works if the
+    service logs its releases. Returns None when nothing matches.
+    """
+    best = None
+    for ts, text in lines:
+        if ts > started or not _DEPLOY.search(text):
+            continue
+        gap = (started - ts).total_seconds() / 60
+        if gap <= within_minutes and (best is None or ts > best[0]):
+            best = (ts, text)
+    if best is None:
+        return None
+    return dict(at=best[0].isoformat(), minutes_before=int((started - best[0]).total_seconds() // 60), text=best[1][:120])

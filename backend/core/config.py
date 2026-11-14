@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     ENGINE_SEED: int = 7                 # which simulated fortnight to play
     ENGINE_TICK_SECONDS: float = 1.0     # wall seconds per 5 simulated minutes
     ENGINE_STORE_EVENTS: bool = True     # write the audit log to the database
+    POLICY_FILE: str = "config/policy.yaml"   # guardrails and fix ladders, see that file
     ARCHIVE_S3_BUCKET: str = ""           # copy the audit log here once a day when set
     ALERT_SNS_TOPIC_ARN: str = ""         # alerts go here when set
     ALERT_SLACK_WEBHOOK: str = ""         # and here

@@ -43,7 +43,7 @@ def _score(fleet, eng):
     role = {iid: i["role"] for iid, i in fleet.instances.items()}
     out = dict(faults=0, detected=0, diagnosed=0, benign=0, benign_left_alone=0, breaches_possible=0,
                breaches=0, fault_minutes=0.0, actions=0, wrong_actions=0, verified=0, verify_failed=0,
-               approvals=0, escalated=0, by_kind={})
+               approvals=0, escalated=0, notice_minutes=0.0, by_kind={})
     actions = [a for a in eng.audit if a["type"] == "action" and a["ok"]]
     for e in fleet.events:
         start, end = pd.Timestamp(e.start), pd.Timestamp(e.end)
@@ -60,6 +60,7 @@ def _score(fleet, eng):
         out["faults"] += 1; k["faults"] += 1
         if seen:
             out["detected"] += 1; k["detected"] += 1
+            out["notice_minutes"] += (min(pd.Timestamp(i.opened) for i in seen) - start).total_seconds() / 60
         if any(i.cause in EXPECTED[e.kind] for i in seen):
             out["diagnosed"] += 1; k["diagnosed"] += 1
         stop = pd.Timestamp(e.stopped_at) if e.stopped_at else end
@@ -111,6 +112,7 @@ def markdown(res, title="Closed loop on the simulated fleet"):
              "| | Shadow (no healing) | Auto, operator approves after 15 min |", "|---|---|---|",
              f"| Faults injected | {s['faults']} | {a['faults']} |",
              f"| Faults noticed | {s['detected']} | {a['detected']} |",
+             f"| Average minutes from fault start to noticed | {s['notice_minutes'] / max(1, s['detected']):.0f} | {a['notice_minutes'] / max(1, a['detected']):.0f} |",
              f"| Diagnosed as the right cause | {s['diagnosed']} | {a['diagnosed']} |",
              f"| Ramps that reached the danger line | {s['breaches']}/{s['breaches_possible']} | {a['breaches']}/{a['breaches_possible']} |",
              f"| Total fault time (hours) | {s['fault_minutes'] / 60:.0f} | {a['fault_minutes'] / 60:.0f} |",

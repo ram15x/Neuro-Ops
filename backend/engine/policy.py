@@ -40,6 +40,8 @@ class PolicyConfig:
     protected_roles: tuple = ("db",)     # disruptive actions here always need a person
     observe_for: timedelta = timedelta(minutes=30)
     max_scale_out: int = 2
+    playbook: dict = None                # cause -> ladder, None means the built-in PLAYBOOK
+    extra_approval: tuple = ()           # more actions that need a person, on top of the built-in ones
 
 
 @dataclass
@@ -50,9 +52,9 @@ class PolicyState:
     scaled: dict = field(default_factory=dict)          # role -> extra instances
 
 
-def next_action(incident):
+def next_action(incident, playbook=None):
     """walk the ladder: skip anything already tried"""
-    ladder = PLAYBOOK.get(incident.cause, ["notify"])
+    ladder = (playbook or PLAYBOOK).get(incident.cause, ["notify"])
     used = dict(incident.attempts)
     for step in ladder:
         if used.get(step, 0) > 0:
@@ -64,7 +66,7 @@ def next_action(incident):
 
 def decide(incident, now, instances, cfg, state):
     """returns (action, status, reasons)"""
-    action = next_action(incident)
+    action = next_action(incident, cfg.playbook)
     reasons = []
     if action == "none":
         return action, "none", ["looks like a release, memory is higher but steady"]
@@ -72,7 +74,7 @@ def decide(incident, now, instances, cfg, state):
         if now - incident.opened < cfg.observe_for:
             return "observe", "none", [f"watching for {int(cfg.observe_for.total_seconds() // 60)} min before acting"]
         incident.attempts["observe"] = 1
-        action = next_action(incident)
+        action = next_action(incident, cfg.playbook)
     if action == "notify":
         return action, "notify", ["no safe automatic fix left, a person needs to look"]
 
@@ -98,7 +100,7 @@ def decide(incident, now, instances, cfg, state):
     # guardrails that hand the decision to a person
     if cfg.mode == "approval":
         reasons.append("approval mode")
-    if spec["needs_approval"]:
+    if spec["needs_approval"] or action in cfg.extra_approval:
         reasons.append("this action always needs a person (downtime or cost)")
     if spec["disruptive"] and tier in cfg.protected_roles:
         reasons.append(f"{tier} is a protected tier")

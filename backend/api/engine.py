@@ -2,10 +2,14 @@
 API for the engine. In demo mode the engine runs on the simulated fleet and
 the clock moves faster than real time.
 """
+import copy
+import os
 import threading
+import time
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from backend.api.auth import get_current_user
@@ -14,8 +18,11 @@ from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
 from backend.engine.export import snapshot
 from backend.engine.model import as_dict
+from backend.engine.metrics import render as render_metrics
 from backend.engine.notify import from_settings
+from backend.engine.report import postmortem, reliability
 from backend.engine.policy import PolicyConfig
+from backend.engine.policy_file import load as load_policy
 from backend.engine.sources import SimSource
 from backend.sim.aws_fleet import build_fleet
 
@@ -30,19 +37,32 @@ class Runner:
         self.thread = None
         self.stop = threading.Event()
         self.seed = settings.ENGINE_SEED
+        self.policy = self._policy()
         self.store = settings.ENGINE_STORE_EVENTS
         self.archive = None
         if settings.ARCHIVE_S3_BUCKET:
             from backend.storage.archive import S3Archive
             self.archive = S3Archive(settings.ARCHIVE_S3_BUCKET, settings.AWS_REGION)
         self.archived = 0
+        self.last_tick, self.ticks = 0.0, 0
         self._new_run()
+
+    @staticmethod
+    def _policy():
+        """the policy file, with the safer of its mode and ENGINE_MODE winning. a bad file stops startup."""
+        cfg = load_policy(settings.POLICY_FILE) if os.path.exists(settings.POLICY_FILE) else PolicyConfig()
+        rank = {"shadow": 0, "approval": 1, "auto": 2}
+        if rank.get(settings.ENGINE_MODE, 0) < rank[cfg.mode]:
+            cfg.mode = settings.ENGINE_MODE
+        return cfg
 
     def _new_run(self):
         fleet = build_fleet(seed=self.seed)
-        mode = getattr(self, "engine", None).cfg.mode if getattr(self, "engine", None) else settings.ENGINE_MODE
+        cfg = copy.copy(self.policy)
+        if getattr(self, "engine", None):
+            cfg.mode = self.engine.cfg.mode   # a mode someone set through the API survives a new run
         self.fleet = fleet
-        self.engine = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode),
+        self.engine = Engine(SimSource(fleet), SimExecutor(fleet), cfg,
                              notifier=from_settings(settings, simulated=True), dashboard_url=settings.ALERT_DASHBOARD_URL or None)
         if self.store:
             self.engine.sink = self._store_event
@@ -72,6 +92,14 @@ class Runner:
                 print(f"archive failed: {e}")
 
     def tick(self):
+        t0 = time.perf_counter()
+        try:
+            self._tick()
+        finally:
+            self.last_tick = time.perf_counter() - t0
+            self.ticks += 1
+
+    def _tick(self):
         with self.lock:
             if self.step % 288 == 0 or self.step >= self.fleet.n:
                 self._flush_archive()
@@ -199,6 +227,30 @@ def history(limit: int = 200, run: int = None):
                             "simulated": x.simulated, **(x.payload or {})} for x in rows]}
     finally:
         db.close()
+
+
+@router.get("/engine/report")
+def report():
+    """how long incidents stayed open, how fast the engine acted, what it fixed on its own"""
+    r = get_runner()
+    with r.lock:
+        return {**reliability(r.engine, r.now().to_pydatetime())}
+
+
+@router.get("/engine/incidents/{incident_id}/postmortem", response_class=PlainTextResponse)
+def incident_postmortem(incident_id: int):
+    """a markdown draft, built from the audit log"""
+    r = get_runner()
+    with r.lock:
+        if not 1 <= incident_id <= len(r.engine.incidents):
+            raise HTTPException(404, "unknown incident")
+        return postmortem(r.engine, r.engine.incidents[incident_id - 1], r.now().to_pydatetime())
+
+
+def metrics_text():
+    r = get_runner()
+    with r.lock:
+        return render_metrics(r.engine, r.step, r.last_tick, r.ticks)
 
 
 @router.get("/engine/approvals")

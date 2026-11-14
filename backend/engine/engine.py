@@ -14,7 +14,7 @@ from backend.engine import policy as P
 from backend.engine.diagnose import diagnose
 from backend.engine.model import Decision, Incident
 from backend.engine.notify import build_alert
-from backend.logs.cluster import rising
+from backend.logs.cluster import rising, recent_change
 from backend.engine.signals import THRESHOLDS, anomaly_signal, forecast_signal, limit_signal
 
 STEP = timedelta(minutes=5)
@@ -77,6 +77,19 @@ class Engine:
             print(f"log lookup failed: {e}")
             return []
 
+    def _change_for(self, inc, now):
+        """was something deployed in the two hours before this started? advice for the reader, it changes no decision."""
+        if not self.use_logs or not hasattr(self.source, "logs"):
+            return None
+        try:
+            lines = []
+            for iid in self._members(inc.target):
+                lines += self.source.logs(iid, inc.opened - timedelta(hours=2), now + STEP)
+            return recent_change(lines, inc.opened)
+        except Exception as e:
+            print(f"deploy lookup failed: {e}")
+            return None
+
     def _alert(self, now, inc, kind, why, resolved=False):
         if not self.notifier:
             return
@@ -136,6 +149,7 @@ class Engine:
             if inc is None:
                 inc = Incident(len(self.incidents) + 1, d.cause, d.scope, d.target, now, d.severity, evidence=d.evidence[:4])
                 inc.logs = self._logs_for(inc, now)
+                inc.change = self._change_for(inc, now)
                 self.incidents.append(inc)
                 self.open[key] = inc
                 self.log(now, "incident_opened", incident=inc.id, cause=d.cause, target=d.target,

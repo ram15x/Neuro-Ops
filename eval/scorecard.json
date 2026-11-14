@@ -16,6 +16,7 @@
     "verify_failed": 0,
     "approvals": 0,
     "escalated": 8,
+    "notice_minutes": 2145.0,
     "by_kind": {
      "credit_drain": {
       "faults": 6,
@@ -69,6 +70,7 @@
     "verify_failed": 4,
     "approvals": 9,
     "escalated": 14,
+    "notice_minutes": 2090.0,
     "by_kind": {
      "credit_drain": {
       "faults": 6,
@@ -124,6 +126,7 @@
     "verify_failed": 0,
     "approvals": 0,
     "escalated": 3,
+    "notice_minutes": 3050.0,
     "by_kind": {
      "credit_drain": {
       "faults": 6,
@@ -177,6 +180,7 @@
     "verify_failed": 0,
     "approvals": 5,
     "escalated": 7,
+    "notice_minutes": 3050.0,
     "by_kind": {
      "credit_drain": {
       "faults": 6,
@@ -1186,19 +1190,19 @@
    "memory_leak": {
     "events": 6,
     "warned": 6,
-    "median_eta_error_min": 29.248740613719928,
+    "median_eta_error_min": 29.2,
     "median_warning_lead_min": 302.5
    },
    "disk_fill": {
     "events": 6,
     "warned": 6,
-    "median_eta_error_min": 32.44339750542296,
+    "median_eta_error_min": 32.4,
     "median_warning_lead_min": 242.5
    },
    "credit_drain": {
     "events": 6,
     "warned": 6,
-    "median_eta_error_min": 2.4208108835478015,
+    "median_eta_error_min": 2.4,
     "median_warning_lead_min": 327.5
    }
   },
