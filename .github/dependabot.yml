@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # passlib 1.7.4 breaks on bcrypt 5, so stay on 4.x until passlib is replaced
+      - dependency-name: bcrypt
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -13,6 +17,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # stay on a stable python release, move to the next one by hand
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: terraform
     directory: /infra/terraform
     schedule:
