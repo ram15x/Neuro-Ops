@@ -110,11 +110,6 @@ async def startup_event():
     logger.info(f"NeuroOps v{settings.APP_VERSION} started successfully")
     start_metrics_analyzer(interval_seconds=60)
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    logger.info("NeuroOps shutting down")
-
 # ========== ROOT ENDPOINTS ==========
 @app.get("/")
 async def root():

@@ -24,14 +24,21 @@ class Settings(BaseSettings):
     DB_USER: str = "postgres"
     DB_PASSWORD: str = "postgres"
     
+    # set DB_URL to use something other than postgres (tests and demo mode use sqlite)
+    DB_URL: Optional[str] = None
+
     @property
     def DATABASE_URL(self) -> str:
+        if self.DB_URL:
+            return self.DB_URL
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     # Redis
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
+    # in-memory redis for tests and demo mode, no server needed
+    REDIS_FAKE: bool = False
     
     @property
     def REDIS_URL(self) -> str:
@@ -302,10 +309,18 @@ def validate_config():
     if missing:
         raise ValueError(f"Missing required configuration: {', '.join(missing)}")
     
-    # Validate JWT secret is not default
+    # default secrets are fine on a laptop, never in production
+    production = os.getenv("ENV") == "production"
     if settings.JWT_SECRET == "your-secret-key-change-in-prod":
-        raise ValueError("JWT_SECRET must be changed from default value!")
-    
+        if production:
+            raise ValueError("JWT_SECRET must be changed from default value!")
+        # random secret per process so a forgotten default can't sign real tokens
+        import secrets
+        settings.JWT_SECRET = secrets.token_urlsafe(48)
+        print("JWT_SECRET not set, using a random one for this run (tokens reset on restart)")
+    if production and settings.DEFAULT_ADMIN_PASSWORD == "admin123":
+        raise ValueError("DEFAULT_ADMIN_PASSWORD must be changed from default value!")
+
     return True
 
 
