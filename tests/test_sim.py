@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from backend.sim.aws_fleet import simulate, FLEET, STEPS_PER_DAY

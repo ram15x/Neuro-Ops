@@ -3,7 +3,6 @@ API for the engine. In demo mode the engine runs on the simulated fleet and
 the clock moves faster than real time.
 """
 import threading
-import time
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +14,7 @@ from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
 from backend.engine.export import snapshot
 from backend.engine.model import as_dict
+from backend.engine.notify import from_settings
 from backend.engine.policy import PolicyConfig
 from backend.engine.sources import SimSource
 from backend.sim.aws_fleet import build_fleet
@@ -31,13 +31,19 @@ class Runner:
         self.stop = threading.Event()
         self.seed = settings.ENGINE_SEED
         self.store = settings.ENGINE_STORE_EVENTS
+        self.archive = None
+        if settings.ARCHIVE_S3_BUCKET:
+            from backend.storage.archive import S3Archive
+            self.archive = S3Archive(settings.ARCHIVE_S3_BUCKET, settings.AWS_REGION)
+        self.archived = 0
         self._new_run()
 
     def _new_run(self):
         fleet = build_fleet(seed=self.seed)
         mode = getattr(self, "engine", None).cfg.mode if getattr(self, "engine", None) else settings.ENGINE_MODE
         self.fleet = fleet
-        self.engine = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode))
+        self.engine = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode),
+                             notifier=from_settings(settings, simulated=True), dashboard_url=settings.ALERT_DASHBOARD_URL or None)
         if self.store:
             self.engine.sink = self._store_event
         self.step = self.engine.warm
@@ -53,11 +59,26 @@ class Runner:
         finally:
             db.close()
 
+    def _flush_archive(self):
+        # once per simulated day, and when a run ends, copy the new audit lines to S3
+        if not self.archive:
+            return
+        fresh = self.engine.audit[self.archived:]
+        if fresh:
+            try:
+                self.archive.put(self.seed, fresh)
+                self.archived += len(fresh)
+            except Exception as e:   # S3 being down must not stop the engine, it retries next time
+                print(f"archive failed: {e}")
+
     def tick(self):
         with self.lock:
+            if self.step % 288 == 0 or self.step >= self.fleet.n:
+                self._flush_archive()
             if self.step >= self.fleet.n:
                 # end of the simulated fortnight: start a fresh one
                 self.seed += 1
+                self.archived = 0
                 self._new_run()
             self.engine.step(self.step)
             self.step += 1

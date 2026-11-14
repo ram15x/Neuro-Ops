@@ -3,11 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import os
-import signal
 from backend.middleware.request_id import RequestIDMiddleware
 import asyncio
 from datetime import datetime
-import logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded

@@ -6,14 +6,15 @@ the engine decided NOT to do.
 """
 from datetime import timedelta
 
-import numpy as np
 import pandas as pd
 
 from backend.data.loaders import KIND
 from backend.detect.detectors import DETECTORS, prepare
 from backend.engine import policy as P
 from backend.engine.diagnose import diagnose
-from backend.engine.model import Decision, Incident, as_dict
+from backend.engine.model import Decision, Incident
+from backend.engine.notify import build_alert
+from backend.logs.cluster import rising
 from backend.engine.signals import THRESHOLDS, anomaly_signal, forecast_signal, limit_signal
 
 STEP = timedelta(minutes=5)
@@ -23,7 +24,8 @@ CLEAR_AFTER = 6                           # quiet ticks before an incident close
 
 
 class Engine:
-    def __init__(self, source, executor, config=None, warm_steps=864, auto_approve_after=None):
+    def __init__(self, source, executor, config=None, warm_steps=864, auto_approve_after=None, notifier=None,
+                 use_logs=True, dashboard_url=None):
         self.source = source
         self.executor = executor
         self.cfg = config or P.PolicyConfig()
@@ -39,6 +41,9 @@ class Engine:
         self.verifications = []
         self.approvals = []
         self.audit = []
+        self.notifier = notifier
+        self.use_logs = use_logs
+        self.dashboard_url = dashboard_url
         self.sink = None          # optional callable(event dict), used to keep the log in a database
         self._scores = {}
         self._said = {}
@@ -52,6 +57,34 @@ class Engine:
                 self.sink(event)
             except Exception as e:   # a full disk must not stop the healing loop
                 print(f"could not store audit event: {e}")
+
+    def _logs_for(self, inc, now):
+        """log lines that are new or louder in the last 30 minutes than in the day before"""
+        if not self.use_logs or not hasattr(self.source, "logs"):
+            return []
+        try:
+            w0 = now - 6 * STEP
+            b0 = w0 - timedelta(hours=24)
+            win, base = [], []
+            for iid in self._members(inc.target):
+                win += self.source.logs(iid, w0, now + STEP)
+                base += self.source.logs(iid, b0, w0)
+            if not win:
+                return []
+            scale = (now + STEP - w0) / (w0 - b0)
+            return [{**c, "example": c["example"][:160]} for c in rising(win, base, top=4, baseline_scale=scale)]
+        except Exception as e:   # a log source being down must not stop the healing loop
+            print(f"log lookup failed: {e}")
+            return []
+
+    def _alert(self, now, inc, kind, why, resolved=False):
+        if not self.notifier:
+            return
+        trail = [e for e in self.audit if e.get("incident") == inc.id]
+        alert = build_alert(inc, why, trail, now, self.source.simulated, self.dashboard_url, resolved)
+        for r in self.notifier.notify(alert, kind, now):
+            self.log(now, "notified", incident=inc.id, why=kind, channel=r["channel"], ok=r["ok"],
+                     subject=alert["subject"], text=alert["text"], error=r.get("error"))
 
     def _members(self, target):
         return [i.id for i in self.instances if i.role == target] or [target]
@@ -102,6 +135,7 @@ class Engine:
             inc = self.open.get(key)
             if inc is None:
                 inc = Incident(len(self.incidents) + 1, d.cause, d.scope, d.target, now, d.severity, evidence=d.evidence[:4])
+                inc.logs = self._logs_for(inc, now)
                 self.incidents.append(inc)
                 self.open[key] = inc
                 self.log(now, "incident_opened", incident=inc.id, cause=d.cause, target=d.target,
@@ -125,14 +159,20 @@ class Engine:
             dec = Decision(now, inc.id, inc.cause, action, inc.target, status, reasons)
             self.log(now, "decision", incident=inc.id, cause=dec.cause, action=dec.action,
                      target=dec.target, status=dec.status, reasons=dec.reasons)
+            if status == "shadow" and inc.severity == "critical":
+                self._alert(now, inc, "shadow", ["shadow mode: the engine would have acted but is only watching"])
             if status == "executed":
                 self._execute(now, step, inc, action)
             elif status == "needs_approval":
                 self.approvals.append(dict(id=len(self.approvals) + 1, incident=inc.id, action=action, target=inc.target,
                                            reasons=reasons, requested=now, step=step, status="pending"))
+                inc.logs = self._logs_for(inc, now) or inc.logs
+                self._alert(now, inc, "approval", [f"waiting for approval to {action}"] + reasons)
             elif status == "notify":
                 inc.status = "escalated"
                 self.log(now, "escalated", incident=inc.id, cause=inc.cause, target=inc.target, reasons=reasons)
+                inc.logs = self._logs_for(inc, now) or inc.logs
+                self._alert(now, inc, "escalated", reasons)
 
         self._close(now, step, active)
         return signals, diags
@@ -239,6 +279,8 @@ class Engine:
                     self.log(now, "rolled_back", incident=inc.id, action=action, target=inc.target,
                              ok=res["ok"], detail=res["detail"])
                 self.log(now, "incident_resolved", incident=inc.id, cause=inc.cause, target=inc.target, how=how)
+                if self.notifier and any(k[0] == inc.id for k in self.notifier.done):
+                    self._alert(now, inc, "resolved", [], resolved=True)
 
     def run(self, start=None, end=None):
         start = self.warm if start is None else start

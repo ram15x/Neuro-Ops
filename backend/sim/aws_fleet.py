@@ -7,7 +7,7 @@ faults ourselves, the labels are exact. Everything from here is SIMULATED and
 is marked that way wherever it is shown.
 """
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -327,6 +327,7 @@ def build_fleet(days=14, seed=7, start="2026-03-02", warm_days=3, density=2, fle
     plan = _schedule(rng, n, warm_days * STEPS_PER_DAY, fleet, density, hard)
     shared_load = _load_curve(ts, rng)
     F = Fleet(ts, seed)
+    F.hard = hard
 
     for iid, role, itype in fleet:
         p = ROLES[role]

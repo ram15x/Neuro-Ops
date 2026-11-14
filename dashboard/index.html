@@ -13,8 +13,11 @@
 <body>
 <header class="top">
   <div class="brand">
-    <h1>NeuroOps</h1>
-    <p class="source" id="source">Loading</p>
+    <svg class="mark" viewBox="0 0 44 44" aria-hidden="true"><path d="M3 24h9l4-12 7 22 5-16 3 6h10"/><circle cx="38" cy="8" r="3.2"/></svg>
+    <div>
+      <h1>NeuroOps</h1>
+      <p class="source" id="source">Loading</p>
+    </div>
   </div>
   <p class="lede" id="lede"></p>
   <div class="switches">
@@ -29,6 +32,9 @@
       <button type="button" data-mode="approval" aria-pressed="false" hidden>Approval</button>
       <button type="button" data-mode="auto" aria-pressed="false">Auto</button>
     </fieldset>
+    <button type="button" class="theme" id="theme" aria-label="Switch between light and dark">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2a8 8 0 1 0 8 8 6 6 0 0 1-8-8z"/></svg>
+    </button>
   </div>
 </header>
 
@@ -36,6 +42,10 @@
   <button type="button" id="play" class="play" aria-label="Pause">
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path id="playIcon" d="M5 3h4v14H5zM11 3h4v14h-4z"/></svg>
   </button>
+  <div class="hop" role="group" aria-label="Jump between incidents">
+    <button type="button" id="prevInc">Previous incident</button>
+    <button type="button" id="nextInc">Next incident</button>
+  </div>
   <label class="speed">Speed
     <select id="speed">
       <option value="6">30 min per second</option>
@@ -44,9 +54,10 @@
     </select>
   </label>
   <time id="clock" class="clock"></time>
-  <p id="tally" class="tally"></p>
   <label class="check" id="truthWrap"><input type="checkbox" id="truth"> Show injected faults</label>
 </section>
+
+<section class="kpis" id="kpis" aria-label="Summary so far"></section>
 
 <div class="scrubwrap">
   <canvas id="scrub" tabindex="0" role="slider" aria-label="Position in the recording" aria-valuemin="0"></canvas>
@@ -92,6 +103,15 @@
       <button type="submit">Sign in</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="alertDlg" class="wide">
+  <article>
+    <h2 id="alertSubject"></h2>
+    <pre id="alertText"></pre>
+    <p id="alertNote"></p>
+    <div class="row"><button type="button" id="alertClose">Close</button></div>
+  </article>
 </dialog>
 
 <script src="app.js"></script>

@@ -10,3 +10,7 @@ output "tag_to_add_to_managed_instances" {
   value       = "${local.managed_tag_key}=${local.managed_tag_value}"
   description = "the engine can only act on instances and groups that carry this tag"
 }
+
+output "audit_archive_bucket" {
+  value = aws_s3_bucket.archive.bucket
+}

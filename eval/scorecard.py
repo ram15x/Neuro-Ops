@@ -20,7 +20,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from backend.data.loaders import load_nab, load_sim, load_real_ec2, ROOT
+from backend.data.loaders import load_nab, load_sim, ROOT
 from backend.detect.detectors import DETECTORS, prepare
 from backend.detect.forecast import time_to_breach
 
