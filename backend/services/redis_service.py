@@ -2,12 +2,17 @@ import json
 import redis
 from backend.core.config import settings
 
-redis_client = redis.Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    db=settings.REDIS_DB,
-    decode_responses=True
-)
+if settings.REDIS_FAKE:
+    # same API as redis, lives in memory
+    import fakeredis
+    redis_client = fakeredis.FakeRedis(decode_responses=True)
+else:
+    redis_client = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        decode_responses=True
+    )
 
 def get_redis():
     return redis_client

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v3-rebuild]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      # tests use sqlite and in-memory redis, see tests/conftest.py
+      - run: pytest -q --cov=backend --cov-report=term
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t neuroops:ci .
+      # boot the image without postgres or redis and wait for /ping
+      - run: |
+          docker run -d --name neuroops -p 8000:8000 \
+            -e DB_URL=sqlite:////tmp/neuroops.db -e REDIS_FAKE=true neuroops:ci
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8000/ping && exit 0
+            sleep 2
+          done
+          docker logs neuroops
+          exit 1
