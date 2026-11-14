@@ -13,6 +13,7 @@ from backend.api.auth import get_current_user
 from backend.core.config import settings
 from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
+from backend.engine.export import snapshot
 from backend.engine.model import as_dict
 from backend.engine.policy import PolicyConfig
 from backend.engine.sources import SimSource
@@ -92,6 +93,17 @@ def status():
             "incidents_total": len(e.incidents),
             "actions_total": sum(a["type"] == "action" for a in e.audit),
         }
+
+
+@router.get("/engine/snapshot")
+def snap(points: int = 576):
+    """the same shape as a recording, covering the last `points` datapoints"""
+    r = get_runner()
+    with r.lock:
+        points = max(12, min(points, 2016))
+        out = snapshot(r.fleet, r.engine, max(0, r.step - points), r.step, "live")
+        out["meta"]["live"] = True
+        return out
 
 
 @router.get("/engine/fleet")
