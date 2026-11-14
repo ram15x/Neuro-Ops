@@ -46,6 +46,8 @@ class Engine:
         self.dashboard_url = dashboard_url
         self.sink = None          # optional callable(event dict), used to keep the log in a database
         self._scores = {}
+        self._live = {}
+        self._gaps = {}
         self._said = {}
 
     # ---- bookkeeping ----
@@ -108,20 +110,67 @@ class Engine:
                 del self._scores[key]
 
     def _score(self, iid, metric, step):
+        key = (iid, metric)
+        if not self.source.replayable:
+            # real data: score the history we just fetched, last point only
+            if key not in self._scores:
+                ts, values = self._live[key]
+                self._scores[key] = self.detector(prepare(values, KIND.get(metric)), ts, self.warm)
+            return self._scores[key][-1]
         # detectors only look backwards, so one pass over the whole replay gives
         # the same numbers as scoring point by point. redone after any action.
-        key = (iid, metric)
         if key not in self._scores:
             self._scores[key] = self.detector(prepare(self.source.full(iid, metric), KIND.get(metric)), self.source.ts, self.warm)
         return self._scores[key][step]
 
     # ---- one tick ----
     def step(self, step):
-        now = self.source.ts[step].to_pydatetime()
+        return self._observe(self.source.ts[step].to_pydatetime(), step)
+
+    def step_live(self, now, tick):
+        """one tick on real data: fetch the history now, then run the same logic as a replay tick"""
+        self._scores.clear()
+        self._live = {}
+        self.instances = self.source.instances()
+        self.role = {i.id: i.role for i in self.instances}
+        for inst in self.instances:
+            try:
+                got = self.source.history_many(inst.id, now)
+            except Exception as e:   # throttled or down: skip this instance this tick, never crash the loop
+                self._data_gap(now, inst.id, "unreadable", f"could not read metrics: {type(e).__name__}")
+                continue
+            fresh = got.pop("_last_seen", None)
+            if fresh is None or now - fresh > 3 * STEP:
+                self._data_gap(now, inst.id, "stale", "no recent data points" if fresh is None else
+                               f"last data point is {int((now - fresh).total_seconds() // 60)} min old")
+                continue
+            self._gaps.pop(inst.id, None)
+            for metric, (ts, values) in got.items():
+                # a new instance has no history to learn from yet. one day is enough to start, the
+                # lookback window can never hold a full `warm` of points anyway (the newest slot is still open)
+                if len(values) >= min(self.warm, 288):
+                    self._live[(inst.id, metric)] = (ts, values)
+        return self._observe(now, tick)
+
+    def _data_gap(self, now, iid, kind, why):
+        # one line per instance until data comes back, a dead box should not fill the log
+        if self._gaps.get(iid) != kind:
+            self._gaps[iid] = kind
+            self.log(now, "data_gap", target=iid, why=why)
+
+    def _managed(self, inc):
+        return all(i.managed for i in self.instances if i.id == inc.target or i.role == inc.target)
+
+    def _observe(self, now, step):
         signals = []
         for inst in self.instances:
             for metric in self.source.metrics(inst.id):
-                _, values = self.source.history(inst.id, metric, step)
+                if self.source.replayable:
+                    _, values = self.source.history(inst.id, metric, step)
+                elif (inst.id, metric) in self._live:
+                    values = self._live[(inst.id, metric)][1]
+                else:
+                    continue
                 found = [limit_signal(now, inst.id, metric, values[-1]),
                          forecast_signal(now, inst.id, metric, values)]
                 if metric != "CPUCreditBalance":
@@ -166,6 +215,9 @@ class Engine:
             if inc.status != "open" or self._waiting(inc):
                 continue
             action, status, reasons = P.decide(inc, now, self.instances, self.cfg, self.state)
+            if status in ("executed", "needs_approval") and not self._managed(inc):
+                # belt and braces: IAM should already stop this, but do not even ask for the action
+                action, status, reasons = "notify", "notify", ["not tagged neuroops:managed=true, so the engine will not touch it"]
             said = (action, status)
             if self._said.get(inc.id) == said:
                 continue   # same answer as last tick, no need to log it again

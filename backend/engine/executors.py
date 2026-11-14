@@ -60,13 +60,16 @@ class AwsExecutor(Executor):
                "find /var/log -name '*.gz' -mtime +7 -delete || true",
                "find /tmp -type f -mtime +3 -delete || true", "df -h /"]
 
-    def __init__(self, region, service_name="neuroops", session=None):
+    TAG = "neuroops:managed"
+
+    def __init__(self, region, service_name="neuroops", session=None, require_tag=True):
         import boto3
         s = session or boto3.session.Session(region_name=region)
         self.ec2 = s.client("ec2", region_name=region)
         self.ssm = s.client("ssm", region_name=region)
         self.asg = s.client("autoscaling", region_name=region)
         self.service_name = service_name
+        self.require_tag = require_tag
 
     def _shell(self, iid, commands, comment):
         r = self.ssm.send_command(InstanceIds=[iid], DocumentName="AWS-RunShellScript",
@@ -81,8 +84,25 @@ class AwsExecutor(Executor):
                     return g
         return None
 
+    def _refusal(self, action, target):
+        """code-level twin of the IAM rule: act only on things tagged neuroops:managed=true"""
+        if not self.require_tag:
+            return None
+        if action == "scale_out":
+            g = self._group_for_role(target)
+            if g is None:
+                return f"no auto scaling group for {target}"
+            tags = {t["Key"]: t["Value"] for t in g.get("Tags", [])}
+            return None if tags.get(self.TAG) == "true" else f"auto scaling group for {target} is not tagged {self.TAG}=true"
+        res = self.ec2.describe_instances(InstanceIds=[target])["Reservations"]
+        tags = {t["Key"]: t["Value"] for r in res for i in r["Instances"] for t in i.get("Tags", [])}
+        return None if tags.get(self.TAG) == "true" else f"{target} is not tagged {self.TAG}=true"
+
     def run(self, action, target, context):
         try:
+            why = self._refusal(action, target)
+            if why:
+                return dict(ok=False, detail=f"refused: {why}", undo=None)
             if action == "disk_cleanup":
                 cid = self._shell(target, self.CLEANUP, "neuroops disk cleanup")
                 return dict(ok=True, detail=f"cleanup sent, command {cid}", undo=None)
@@ -120,6 +140,10 @@ class AwsExecutor(Executor):
 
     def undo(self, action, target, undo, context):
         try:
+            if action == "enable_unlimited":
+                why = self._refusal(action, target)
+                if why:
+                    return dict(ok=False, detail=f"refused: {why}")
             if action == "scale_out":
                 self.asg.set_desired_capacity(AutoScalingGroupName=undo["group"],
                                               DesiredCapacity=undo["capacity"], HonorCooldown=False)

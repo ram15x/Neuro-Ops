@@ -8,6 +8,7 @@ import threading
 import time
 
 import numpy as np
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -129,13 +130,76 @@ class Runner:
         return self.fleet.ts[min(self.step, self.fleet.n) - 1]
 
 
+class LiveRunner:
+    """
+    Same job as Runner but the data is real CloudWatch, read every 5 minutes.
+    Stays in shadow unless ENGINE_LIVE_ACTIONS is on, whatever the mode setting says.
+    """
+    live = True
+
+    def __init__(self, source=None, executor=None):
+        from backend.engine.executors import AwsExecutor
+        from backend.engine.sources import CloudWatchSource
+        self.lock = threading.Lock()
+        self.thread = None
+        self.stop = threading.Event()
+        self.seed = 0
+        self.policy = Runner._policy()
+        if not settings.ENGINE_LIVE_ACTIONS:
+            self.policy.mode = "shadow"
+        self.store = settings.ENGINE_STORE_EVENTS
+        self.last_tick, self.ticks = 0.0, 0
+        self.step = 0
+        self.data = {}
+        self.clock = pd.Timestamp.now("UTC").tz_localize(None).floor("5min")
+        src = source or CloudWatchSource(settings.AWS_REGION, lookback_days=settings.ENGINE_WARM_DAYS)
+        ex = executor or AwsExecutor(settings.AWS_REGION)
+        self.engine = Engine(src, ex, self.policy, notifier=from_settings(settings, simulated=False),
+                             dashboard_url=settings.ALERT_DASHBOARD_URL or None)
+        if self.store:
+            self.engine.sink = self._store_event
+
+    _store_event = Runner._store_event
+
+    def now(self):
+        return self.clock
+
+    def tick(self):
+        t0 = time.perf_counter()
+        try:
+            with self.lock:
+                self.clock = pd.Timestamp.now("UTC").tz_localize(None).floor("5min")
+                self.engine.step_live(self.clock.to_pydatetime(), self.step)
+                self.data = dict(self.engine._live)
+                self.step += 1
+        finally:
+            self.last_tick = time.perf_counter() - t0
+            self.ticks += 1
+
+    def start(self):
+        if self.thread:
+            return
+
+        def loop():
+            while True:
+                try:
+                    self.tick()
+                except Exception as e:   # a bad tick must not kill the loop
+                    print(f"engine tick failed: {e}")
+                if self.stop.wait(300):
+                    return
+
+        self.thread = threading.Thread(target=loop, daemon=True, name="engine-live")
+        self.thread.start()
+
+
 _runner = None
 
 
 def get_runner():
     global _runner
     if _runner is None:
-        _runner = Runner()
+        _runner = LiveRunner() if settings.ENGINE_SOURCE == "cloudwatch" else Runner()
     return _runner
 
 
@@ -149,7 +213,7 @@ def status():
     with r.lock:
         e = r.engine
         return {
-            "simulated": e.source.simulated, "source": "simulated fleet", "mode": e.cfg.mode,
+            "simulated": e.source.simulated, "source": "cloudwatch" if getattr(r, "live", False) else "simulated fleet", "mode": e.cfg.mode,
             "now": r.now().isoformat(), "step": r.step, "seed": r.seed,
             "open_incidents": len(e.open),
             "pending_approvals": sum(a["status"] == "pending" for a in e.approvals),
@@ -162,6 +226,8 @@ def status():
 def snap(points: int = 576):
     """the same shape as a recording, covering the last `points` datapoints"""
     r = get_runner()
+    if getattr(r, "live", False):
+        raise HTTPException(501, "the replay snapshot is only built for the simulated fleet, use /engine/fleet and /engine/series")
     with r.lock:
         points = max(12, min(points, 2016))
         out = snapshot(r.fleet, r.engine, max(0, r.step - points), r.step, "live")
@@ -172,6 +238,15 @@ def snap(points: int = 576):
 @router.get("/engine/fleet")
 def fleet():
     r = get_runner()
+    if getattr(r, "live", False):
+        with r.lock:
+            out = []
+            for inst in r.engine.instances:
+                latest = {m: round(float(v[-1]), 2) for (i, m), (_, v) in r.data.items() if i == inst.id}
+                troubles = [as_dict(i) for i in r.engine.open.values() if i.target == inst.id or i.target == inst.role]
+                out.append({"id": inst.id, "role": inst.role, "type": inst.itype, "managed": inst.managed,
+                            "latest": latest, "incidents": troubles})
+            return {"simulated": False, "now": r.now().isoformat(), "instances": out}
     with r.lock:
         out = []
         for inst in r.engine.instances:
@@ -186,6 +261,16 @@ def fleet():
 @router.get("/engine/series")
 def series(instance_id: str, metric: str, points: int = 288):
     r = get_runner()
+    if getattr(r, "live", False):
+        with r.lock:
+            got = r.data.get((instance_id, metric))
+            if got is None:
+                raise HTTPException(404, "no data for this instance and metric")
+            points = max(1, min(points, 2016))
+            ts, vals = got
+            return {"simulated": False, "instance_id": instance_id, "metric": metric,
+                    "timestamps": [t.isoformat() for t in ts[-points:]],
+                    "values": np.round(vals[-points:], 3).tolist()}
     with r.lock:
         if instance_id not in r.fleet.instances:
             raise HTTPException(404, "unknown instance")
@@ -258,7 +343,7 @@ def approvals():
     r = get_runner()
     with r.lock:
         rows = [{**a, "requested": a["requested"].isoformat()} for a in r.engine.approvals]
-        return {"simulated": True, "approvals": rows[::-1]}
+        return {"simulated": not getattr(r, "live", False), "approvals": rows[::-1]}
 
 
 @router.post("/engine/approvals/{approval_id}/{verdict}")
@@ -284,6 +369,8 @@ def set_mode(body: ModeIn, user=Depends(get_current_user)):
     if body.mode not in ("shadow", "approval", "auto"):
         raise HTTPException(400, "mode must be shadow, approval or auto")
     r = get_runner()
+    if getattr(r, "live", False) and body.mode != "shadow" and not settings.ENGINE_LIVE_ACTIONS:
+        raise HTTPException(403, "live actions are switched off (ENGINE_LIVE_ACTIONS), the engine stays in shadow")
     with r.lock:
         old = r.engine.cfg.mode
         r.engine.cfg.mode = body.mode

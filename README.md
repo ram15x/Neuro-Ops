@@ -30,6 +30,7 @@ CloudWatch) forecast   the trouble  + mode     or AWS      work?
 - Changes: if a deploy shows up in the logs in the two hours before an incident, the alert and the card say so (it only works if your service logs its releases).
 - Reports: `/api/v1/engine/report` gives time open, time to first action and how many incidents the engine fixed by itself. `/api/v1/engine/incidents/{id}/postmortem` writes a markdown draft from the audit log, with the root-cause section left for a person.
 - Policy: guardrails and fix ladders live in [config/policy.yaml](config/policy.yaml). A wrong file stops the app at startup with the reason, and you can add approval requirements but cannot remove the built-in ones. If the file and `ENGINE_MODE` disagree, the safer mode wins.
+- Real AWS: set `ENGINE_SOURCE=cloudwatch` and the engine reads CloudWatch every 5 minutes instead of playing the simulator. It stays in shadow (alerts only) unless you also set `ENGINE_LIVE_ACTIONS=true`, and it only acts on instances tagged `neuroops:managed=true`; others get an alert and nothing else. If CloudWatch is slow, empty or throttled the instance is skipped for that tick and a `data_gap` line goes in the log once.
 - Metrics: `/metrics` serves Prometheus text (incidents, actions, checks, alerts, mode, tick time) so you can watch the engine with Grafana.
 - Alerts: when the engine runs out of safe fixes, needs an approval, or sees a critical incident in shadow mode, it sends one message per incident (SNS, Slack, or a recorder in the demo) and one more when it resolves. An hourly cap keeps it from becoming noise.
 - Diagnosis: plain rules. A CPU rise across a whole tier is load, on one box it is a runaway process, and so on.
@@ -62,7 +63,8 @@ Full tables are in [docs/scorecard.md](docs/scorecard.md). The short version:
 ## What is not proven
 
 - The AWS executors and the CloudWatch source are tested against moto and botocore stubs only. They have never touched a real account.
-- The CloudWatch metrics source and the CloudWatch Logs source exist but are not wired into the running loop. The running engine uses the simulated fleet, and its alerts are only recorded, not sent, unless you set `ALERT_SEND_SIMULATED=true`.
+- The live loop (`ENGINE_SOURCE=cloudwatch`) is tested end to end against a moto server over HTTP (leak found, shadow alert, untagged box left alone, empty and failing CloudWatch), but that is still a fake AWS. Real CloudWatch delay, throttling and IAM are untested. In the demo, alerts are only recorded unless you set `ALERT_SEND_SIMULATED=true`.
+- Live mode has no replay snapshot (`/engine/snapshot` returns 501), so the dashboard's live view works for the simulator only; the live API is `/engine/fleet` and `/engine/series`.
 - The log lines in the simulator are written by me, so tests on them check the mechanics. The grouping itself was checked on real labelled logs (see docs/logs.md).
 - Alerts reach SNS and Slack only through code tested with moto and a stub. I have not sent a real email.
 - The audit log is stored in the database, and optionally copied to S3 once a simulated day (`ARCHIVE_S3_BUCKET`, tested with moto only). That is all that is stored. Open incidents are not restored after a restart.

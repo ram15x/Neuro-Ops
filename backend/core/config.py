@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     ENGINE_MODE: str = "shadow"          # shadow | approval | auto
     ENGINE_SEED: int = 7                 # which simulated fortnight to play
     ENGINE_TICK_SECONDS: float = 1.0     # wall seconds per 5 simulated minutes
+    ENGINE_SOURCE: str = "sim"           # sim | cloudwatch
+    ENGINE_LIVE_ACTIONS: bool = False    # cloudwatch only: without this the engine stays in shadow, whatever the mode says
+    ENGINE_WARM_DAYS: int = 3            # cloudwatch only: days of history read each tick
     ENGINE_STORE_EVENTS: bool = True     # write the audit log to the database
     POLICY_FILE: str = "config/policy.yaml"   # guardrails and fix ladders, see that file
     ARCHIVE_S3_BUCKET: str = ""           # copy the audit log here once a day when set
