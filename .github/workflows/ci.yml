@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
       # nothing is applied, this only checks the files are well formed
       - run: terraform -chdir=infra/terraform fmt -check -recursive
         continue-on-error: true   # hand-written, formatting is advisory
