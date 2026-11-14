@@ -6,11 +6,7 @@ __pycache__/
 .env
 .pytest_cache
 tests/
-legacy/
-research/
 infra/
 docs/
 data/
-training_data/
-datasets/turbofan*
 dashboard/replay/

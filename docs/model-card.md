@@ -4,10 +4,10 @@
 
 The default path has no pre-trained model. Detection averages a rolling z-score, an Isolation Forest and a time-of-day band, forecasting is a robust line fit (Theil-Sen), and diagnosis is rules. The Isolation Forest part is fitted per series at run time, not trained ahead.
 
-## What was wrong with v2
+## Approaches that were rejected
 
 - The `is_anomaly` label was `cpu > 80`. A Random Forest or XGBoost trained on it, with CPU as an input, learns the rule back. Its high accuracy meant nothing.
-- The NASA turbofan remaining-useful-life model has no meaning for an EC2 instance. It is kept in `research/turbofan/` with a note.
+- A NASA turbofan remaining-useful-life model has no meaning for an EC2 instance, so it is not used.
 - The "service correlation" feature invented four services that did not exist.
 - The training data was one instance, about 14 hours of points over 2.3 days. Memory and disk came from my own psutil agent, because EC2 does not report them without the CloudWatch agent.
 - Log analysis used a free OpenRouter model. I could not verify its availability from the build environment.

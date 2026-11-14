@@ -72,21 +72,6 @@ app.include_router(health.router, prefix="/api/v1", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])
 app.include_router(engine.router, prefix="/api/v1", tags=["Engine"])
 
-# The v2 endpoints (metric agent, old healing, incidents, root cause, model registry...)
-# are still in the repo but off by default. They overlap with the engine and several of
-# them were built on the circular cpu>80 label. Set LEGACY_API_ENABLED=true to mount them.
-if settings.LEGACY_API_ENABLED:
-    from backend.api import (agent, streaming, incidents, aws, inframind, opsgpt, scalewise, autohealing,
-                             buildsense, deployguard, features, registry, pipeline, rootcause, services)
-    for mod, tag in [(agent, "Legacy: agent"), (streaming, "Legacy: streaming"), (aws, "Legacy: AWS"),
-                     (inframind, "Legacy: anomaly detection"), (opsgpt, "Legacy: log analysis"),
-                     (scalewise, "Legacy: cost"), (autohealing, "Legacy: auto healing"),
-                     (buildsense, "Legacy: CI/CD"), (deployguard, "Legacy: deployment"),
-                     (features, "Legacy: feature store"), (registry, "Legacy: model registry"),
-                     (pipeline, "Legacy: data pipeline"), (incidents, "Legacy: incidents"),
-                     (rootcause, "Legacy: root cause"), (services, "Legacy: services")]:
-        app.include_router(mod.router, prefix="/api/v1", tags=[tag])
-
 # ========== STATIC FILES ==========
 if os.path.exists("dashboard"):
     app.mount("/dashboard", StaticFiles(directory="dashboard", html=True), name="dashboard")

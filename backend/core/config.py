@@ -56,7 +56,6 @@ class Settings(BaseSettings):
     ALERT_SEND_SIMULATED: bool = False    # the simulated demo only records alerts unless this is true
     ALERT_MAX_PER_HOUR: int = 10
     ALERT_DASHBOARD_URL: str = ""         # linked from alert messages
-    LEGACY_API_ENABLED: bool = False     # the v2 endpoints (healing, incidents, root cause...), see legacy/README.md
     
     @property
     def REDIS_URL(self) -> str:

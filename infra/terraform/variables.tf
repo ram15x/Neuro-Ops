@@ -23,6 +23,22 @@ variable "engine_mode" {
   }
 }
 
+variable "engine_source" {
+  type        = string
+  default     = "sim"
+  description = "sim plays the simulated fleet. cloudwatch watches the instances in this account that are tagged neuroops:managed=true"
+  validation {
+    condition     = contains(["sim", "cloudwatch"], var.engine_source)
+    error_message = "engine_source must be sim or cloudwatch."
+  }
+}
+
+variable "engine_live_actions" {
+  type        = bool
+  default     = false
+  description = "with cloudwatch, false keeps the engine to alerts only whatever engine_mode says"
+}
+
 variable "instance_type" {
   type    = string
   default = "t3.micro"

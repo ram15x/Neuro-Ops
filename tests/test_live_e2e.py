@@ -25,18 +25,32 @@ def server():
     srv.stop()
 
 
+def _forget_stored_events():
+    # a runner reloads its stored audit lines on start, so every test starts from an empty table
+    from backend.models.database import EngineEvent, SessionLocal
+    db = SessionLocal()
+    db.query(EngineEvent).filter(EngineEvent.run == 0).delete()
+    db.commit()
+    db.close()
+
+
 @pytest.fixture
 def aws(server, monkeypatch):
     for k, v in (("AWS_ACCESS_KEY_ID", "testing"), ("AWS_SECRET_ACCESS_KEY", "testing"),
                  ("AWS_DEFAULT_REGION", REGION), ("AWS_ENDPOINT_URL", server)):
         monkeypatch.setenv(k, v)
+    _forget_stored_events()
     ec2 = boto3.client("ec2", region_name=REGION)
     ami = ec2.describe_images(Owners=["amazon"])["Images"][0]["ImageId"]
     iid = ec2.run_instances(ImageId=ami, InstanceType="t3.small", MinCount=1, MaxCount=1, TagSpecifications=[
         {"ResourceType": "instance", "Tags": [{"Key": "Role", "Value": "web"},
                                               {"Key": "neuroops:managed", "Value": "true"}]}])["Instances"][0]["InstanceId"]
     yield dict(ec2=ec2, iid=iid, cw=boto3.client("cloudwatch", region_name=REGION))
-    ec2.terminate_instances(InstanceIds=[iid])
+    # the server is shared by every test, so leave nothing running behind
+    left = [i["InstanceId"] for r in ec2.describe_instances(Filters=[{"Name": "instance-state-name", "Values": ["running"]}])["Reservations"]
+            for i in r["Instances"]]
+    if left:
+        ec2.terminate_instances(InstanceIds=left)
 
 
 def _put(cw, iid, metric, ns, stamps, values):
@@ -58,7 +72,7 @@ def _leak(aws, now, hours=48, end=93.0):
 
 def _runner():
     r = api.LiveRunner(CloudWatchSource(REGION, lookback_days=3), AwsExecutor(REGION))
-    r.store = False
+    r.store, r.engine.sink = False, None     # these tests should not write to the database
     return r
 
 
@@ -137,3 +151,19 @@ def test_with_live_actions_on_a_managed_box_is_fixed_and_an_untagged_one_is_left
     told = [e for e in r.engine.audit if e["type"] == "notified" and e.get("incident") and
             r.engine.incidents[e["incident"] - 1].target == other]
     assert told, "the untagged box should still get a human alert"
+
+
+def test_open_incidents_survive_a_restart(aws):
+    now = pd.Timestamp.now("UTC").tz_localize(None).floor("5min")
+    _leak(aws, now)
+
+    first = api.LiveRunner(CloudWatchSource(REGION, lookback_days=3), AwsExecutor(REGION))
+    first.tick()
+    assert [i.cause for i in first.engine.incidents] == ["memory_leak"]
+
+    # a new process: it should find the same incident open and not raise a second one
+    second = api.LiveRunner(CloudWatchSource(REGION, lookback_days=3), AwsExecutor(REGION))
+    assert [(i.cause, i.status) for i in second.engine.open.values()] == [("memory_leak", "open")]
+    second.tick()
+    assert len(second.engine.incidents) == 1
+    assert len([e for e in second.engine.audit if e["type"] == "incident_opened"]) == 1

@@ -25,11 +25,6 @@ def test_protected_route_needs_token():
     assert r.status_code in (401, 403)
 
 
-def test_old_v2_endpoints_are_off_by_default():
-    r = client.post("/api/v1/inframind/predict", json={"metric": "ec2_cpu", "value": 85.5})
-    assert r.status_code == 404
-
-
 def test_engine_history_endpoint_answers():
     r = client.get("/api/v1/engine/history?limit=5")
     assert r.status_code == 200
