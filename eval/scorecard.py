@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from backend.data.loaders import load_nab, load_sim, load_real_ec2, ROOT
-from backend.detect.detectors import DETECTORS
+from backend.detect.detectors import DETECTORS, prepare
 from backend.detect.forecast import time_to_breach
 
 WARM = 0.20          # first fifth of each series is learning time, never scored
@@ -46,7 +46,7 @@ def _prepare(series_list, detectors):
     prepared = []
     for s in series_list:
         ts = pd.DatetimeIndex(s.frame["timestamp"])
-        values = s.frame["value"].to_numpy()
+        values = prepare(s.frame["value"].to_numpy(), s.kind)
         n_warm = int(len(values) * WARM)
         scores = {name: DETECTORS[name](values, ts, n_warm) for name in detectors}
         in_fault = np.zeros(len(ts), bool)
@@ -209,7 +209,11 @@ def run(write=True):
     sim_series = load_sim(seed=7) + load_sim(seed=8) + load_sim(seed=9)
     sim = evaluate(sim_series)
     fc = evaluate_forecast()
+    from eval import closed_loop
+    loop_clean = closed_loop.evaluate()
+    loop_hard = closed_loop.evaluate(hard=True)
     summary = {
+        "closed_loop": {"clean": loop_clean, "hard": loop_hard},
         "nab": {f"{b}|{n}": {k: v for k, v in r.items()} for (b, n), r in nab.items()},
         "sim": {f"{b}|{n}": {k: v for k, v in r.items()} for (b, n), r in sim.items()},
         "forecast": fc,
@@ -237,6 +241,16 @@ def run(write=True):
             md.append(f"| {k} | {r['events']} | {r['warned']} | {r['median_warning_lead_min']} | {r['median_eta_error_min']} |")
         md += ["", f"False warnings on quiet time: {fc['false_warnings']} over {fc['quiet_series_days']:.0f} series-days "
                    f"({fc['false_warnings_per_series_day']:.3f} per series-day).", ""]
+        md += ["## Closed loop on the simulated fleet", "",
+               "SIMULATED, seeds 21 to 23, which were not used to calibrate thresholds. The simulator decides "
+               "which action fixes which fault, so this checks the engine's logic (diagnosis, choice of action, "
+               "guardrails, verification), not whether these fixes work on real machines. Shadow mode executes "
+               "nothing, so it doubles as the no-healing baseline.", "",
+               closed_loop.markdown(loop_clean, "Clean faults"),
+               "The clean numbers are close to perfect because the faults are well separated and the "
+               "diagnosis rules were written by the same hand as the simulator. Hard mode is the more "
+               "useful read.", "",
+               closed_loop.markdown(loop_hard, "Hard mode: twice the noise, weaker and overlapping faults, harmless cpu bursts")]
         open(os.path.join(ROOT, "docs", "scorecard.md"), "w").write("\n".join(md))
     return summary
 
@@ -260,6 +274,17 @@ def check(summary):
             problems.append(f"forecast: only warned on {r['warned']}/{r['events']} {kind} events")
     if fc["false_warnings_per_series_day"] > MAX_FALSE_FORECASTS:
         problems.append(f"forecast: {fc['false_warnings_per_series_day']:.3f} false warnings per series-day")
+    loop = summary.get("closed_loop")
+    if loop:
+        clean, shadow = loop["clean"]["auto"], loop["clean"]["shadow"]
+        if shadow["actions"]:
+            problems.append("closed loop: shadow mode executed something")
+        if clean["wrong_actions"]:
+            problems.append(f"closed loop: {clean['wrong_actions']} actions with no fault behind them on clean data")
+        if clean["breaches"] > 0.2 * clean["breaches_possible"]:
+            problems.append(f"closed loop: {clean['breaches']}/{clean['breaches_possible']} ramps still breached")
+        if clean["diagnosed"] < 0.9 * clean["faults"]:
+            problems.append(f"closed loop: only {clean['diagnosed']}/{clean['faults']} faults diagnosed correctly")
     return problems
 
 

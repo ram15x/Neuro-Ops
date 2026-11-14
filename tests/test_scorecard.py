@@ -32,3 +32,14 @@ def test_check_reports_a_drop():
     }
     problems = check(fake)
     assert len(problems) == 2
+
+
+def test_check_catches_shadow_mode_acting():
+    ok = {"recall": 0.9}
+    loop = dict(faults=10, diagnosed=10, breaches=0, breaches_possible=4, wrong_actions=0, actions=5)
+    fake = {
+        "nab": {f"{MAIN_BUDGET}|{DEFAULT_DETECTOR}": ok}, "sim": {f"{MAIN_BUDGET}|{DEFAULT_DETECTOR}": ok},
+        "forecast": {"kinds": {}, "false_warnings_per_series_day": 0.0},
+        "closed_loop": {"clean": {"auto": loop, "shadow": dict(loop, actions=1)}},
+    }
+    assert check(fake) == ["closed loop: shadow mode executed something"]

@@ -49,13 +49,13 @@ SIMULATED data: faults are injected by `backend/sim/aws_fleet.py`.
 
 | Detector | Caught | Recall | False alarms / series-day | Median minutes from window start to first alert |
 |---|---|---|---|---|
-| hybrid_mean | 53/66 | 0.80 | 0.04 | 0 |
-| hybrid_seasonal | 52/66 | 0.79 | 0.02 | 0 |
-| hybrid_and | 51/66 | 0.77 | 0.04 | 0 |
-| seasonal_band | 51/66 | 0.77 | 0.04 | 0 |
-| rolling_zscore | 44/66 | 0.67 | 0.05 | 0 |
-| static_threshold | 35/66 | 0.53 | 0.03 | 0 |
-| isolation_forest | 28/66 | 0.42 | 0.09 | 0 |
+| hybrid_and | 45/66 | 0.68 | 0.01 | 0 |
+| hybrid_seasonal | 42/66 | 0.64 | 0.00 | 0 |
+| hybrid_mean | 42/66 | 0.64 | 0.01 | 0 |
+| seasonal_band | 40/66 | 0.61 | 0.02 | 0 |
+| static_threshold | 34/66 | 0.52 | 0.02 | 0 |
+| rolling_zscore | 32/66 | 0.48 | 0.02 | 0 |
+| isolation_forest | 23/66 | 0.35 | 0.04 | 0 |
 | ewma | 16/66 | 0.24 | 0.01 | 0 |
 
 ## Simulated fleet, 3 seeds (budget 0.25)
@@ -64,13 +64,13 @@ SIMULATED data: faults are injected by `backend/sim/aws_fleet.py`.
 
 | Detector | Caught | Recall | False alarms / series-day | Median minutes from window start to first alert |
 |---|---|---|---|---|
-| isolation_forest | 62/66 | 0.94 | 0.16 | 0 |
-| hybrid_seasonal | 54/66 | 0.82 | 0.04 | 0 |
-| hybrid_mean | 53/66 | 0.80 | 0.06 | 0 |
-| seasonal_band | 52/66 | 0.79 | 0.05 | 0 |
-| hybrid_and | 51/66 | 0.77 | 0.04 | 0 |
-| rolling_zscore | 51/66 | 0.77 | 0.06 | 0 |
-| static_threshold | 49/66 | 0.74 | 0.05 | 0 |
+| isolation_forest | 63/66 | 0.95 | 0.14 | 0 |
+| hybrid_seasonal | 53/66 | 0.80 | 0.04 | 0 |
+| static_threshold | 49/66 | 0.74 | 0.04 | 0 |
+| seasonal_band | 47/66 | 0.71 | 0.06 | 0 |
+| hybrid_mean | 46/66 | 0.70 | 0.04 | 0 |
+| hybrid_and | 46/66 | 0.70 | 0.05 | 0 |
+| rolling_zscore | 44/66 | 0.67 | 0.09 | 0 |
 | ewma | 29/66 | 0.44 | 0.02 | 0 |
 
 ## Simulated fleet, 3 seeds (budget 0.5)
@@ -79,27 +79,27 @@ SIMULATED data: faults are injected by `backend/sim/aws_fleet.py`.
 
 | Detector | Caught | Recall | False alarms / series-day | Median minutes from window start to first alert |
 |---|---|---|---|---|
-| isolation_forest | 65/66 | 0.98 | 0.18 | 0 |
-| ewma | 65/66 | 0.98 | 0.26 | 0 |
-| hybrid_mean | 58/66 | 0.88 | 0.14 | 0 |
-| hybrid_seasonal | 57/66 | 0.86 | 0.07 | 0 |
-| static_threshold | 54/66 | 0.82 | 0.18 | 0 |
-| rolling_zscore | 53/66 | 0.80 | 0.11 | 0 |
-| seasonal_band | 53/66 | 0.80 | 0.13 | 0 |
-| hybrid_and | 52/66 | 0.79 | 0.08 | 0 |
+| isolation_forest | 63/66 | 0.95 | 0.14 | 0 |
+| ewma | 60/66 | 0.91 | 0.27 | 0 |
+| hybrid_seasonal | 58/66 | 0.88 | 0.12 | 0 |
+| hybrid_mean | 56/66 | 0.85 | 0.09 | 0 |
+| static_threshold | 53/66 | 0.80 | 0.10 | 0 |
+| hybrid_and | 51/66 | 0.77 | 0.11 | 0 |
+| seasonal_band | 48/66 | 0.73 | 0.08 | 0 |
+| rolling_zscore | 44/66 | 0.67 | 0.12 | 0 |
 
 ### Simulated fleet by metric kind (budget 0.25)
 
 | Detector | cpu | disk | memory | network |
 |---|---|---|---|---|
-| static_threshold | 25/33 | 6/6 | 6/6 | 12/21 |
-| rolling_zscore | 29/33 | 4/6 | 5/6 | 13/21 |
+| static_threshold | 26/33 | 6/6 | 5/6 | 12/21 |
+| rolling_zscore | 28/33 | 5/6 | 5/6 | 6/21 |
 | ewma | 13/33 | 5/6 | 4/6 | 7/21 |
-| seasonal_band | 29/33 | 3/6 | 5/6 | 15/21 |
-| isolation_forest | 32/33 | 6/6 | 6/6 | 18/21 |
-| hybrid_and | 28/33 | 5/6 | 6/6 | 12/21 |
-| hybrid_mean | 28/33 | 6/6 | 6/6 | 13/21 |
-| hybrid_seasonal | 29/33 | 5/6 | 4/6 | 16/21 |
+| seasonal_band | 28/33 | 3/6 | 5/6 | 11/21 |
+| isolation_forest | 32/33 | 5/6 | 6/6 | 20/21 |
+| hybrid_and | 27/33 | 6/6 | 6/6 | 7/21 |
+| hybrid_mean | 28/33 | 6/6 | 6/6 | 6/21 |
+| hybrid_seasonal | 30/33 | 5/6 | 5/6 | 13/21 |
 
 Slow ramps (disk, memory) are the weak spot of anomaly detectors, which is why the forecast below exists.
 
@@ -109,8 +109,70 @@ The real EC2 capture in `data/real_training_data.csv` is not scored: it holds ab
 
 | Fault | Events | Warned before breach | Median warning lead (min) | Median ETA error (min) |
 |---|---|---|---|---|
-| memory_leak | 6 | 6 | 347.5 | 35.91157334192323 |
-| disk_fill | 6 | 6 | 252.5 | 29.955132410582603 |
-| credit_drain | 6 | 6 | 352.5 | 2.7706099487691382 |
+| memory_leak | 6 | 6 | 302.5 | 29.248740613719928 |
+| disk_fill | 6 | 6 | 242.5 | 32.44339750542296 |
+| credit_drain | 6 | 6 | 327.5 | 2.4208108835478015 |
 
-False warnings on quiet time: 2 over 645 series-days (0.003 per series-day).
+False warnings on quiet time: 0 over 645 series-days (0.000 per series-day).
+
+## Closed loop on the simulated fleet
+
+SIMULATED, seeds 21 to 23, which were not used to calibrate thresholds. The simulator decides which action fixes which fault, so this checks the engine's logic (diagnosis, choice of action, guardrails, verification), not whether these fixes work on real machines. Shadow mode executes nothing, so it doubles as the no-healing baseline.
+
+### Clean faults
+
+| | Shadow (no healing) | Auto, operator approves after 15 min |
+|---|---|---|
+| Faults injected | 48 | 48 |
+| Faults noticed | 48 | 48 |
+| Diagnosed as the right cause | 48 | 48 |
+| Ramps that reached the danger line | 18/18 | 0/18 |
+| Total fault time (hours) | 209 | 65 |
+| Actions executed | 0 | 41 |
+| Actions with no real fault behind them | 0 | 0 |
+| Actions verified / not verified | - | 37 / 4 |
+| Approvals asked for | - | 9 |
+| Handed to a person | 8 | 14 |
+| Harmless events left alone | 6/6 | 6/6 |
+
+Diagnosis by fault type (auto mode):
+
+| Fault | Injected | Noticed | Right cause |
+|---|---|---|---|
+| cpu_runaway | 6 | 6 | 6 |
+| credit_drain | 6 | 6 | 6 |
+| disk_fill | 6 | 6 | 6 |
+| memory_leak | 6 | 6 | 6 |
+| network_drop | 6 | 6 | 6 |
+| noisy_neighbour | 6 | 6 | 6 |
+| traffic_surge | 12 | 12 | 12 |
+
+The clean numbers are close to perfect because the faults are well separated and the diagnosis rules were written by the same hand as the simulator. Hard mode is the more useful read.
+
+### Hard mode: twice the noise, weaker and overlapping faults, harmless cpu bursts
+
+| | Shadow (no healing) | Auto, operator approves after 15 min |
+|---|---|---|
+| Faults injected | 54 | 54 |
+| Faults noticed | 40 | 41 |
+| Diagnosed as the right cause | 34 | 35 |
+| Ramps that reached the danger line | 18/18 | 1/18 |
+| Total fault time (hours) | 217 | 91 |
+| Actions executed | 0 | 36 |
+| Actions with no real fault behind them | 0 | 6 |
+| Actions verified / not verified | - | 36 / 0 |
+| Approvals asked for | - | 5 |
+| Handed to a person | 3 | 7 |
+| Harmless events left alone | 18/18 | 11/18 |
+
+Diagnosis by fault type (auto mode):
+
+| Fault | Injected | Noticed | Right cause |
+|---|---|---|---|
+| cpu_runaway | 6 | 6 | 4 |
+| credit_drain | 6 | 6 | 6 |
+| disk_fill | 6 | 6 | 6 |
+| memory_leak | 6 | 6 | 6 |
+| network_drop | 6 | 2 | 2 |
+| noisy_neighbour | 6 | 5 | 5 |
+| traffic_surge | 18 | 10 | 6 |

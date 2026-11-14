@@ -56,6 +56,14 @@ def test_forecast_ignores_a_one_off_jump():
     assert time_to_breach(v, limit=90) is None
 
 
+def test_forecast_ignores_a_jump_that_just_happened():
+    # the hard case: the jump is still inside the fitting window
+    rng = np.random.default_rng(4)
+    for since in range(4, 40, 3):
+        v = np.r_[np.full(200, 55.0), np.full(since, 66.0)] + rng.normal(0, 0.6, 200 + since)
+        assert time_to_breach(v, limit=90) is None, since
+
+
 def test_forecast_works_downward_for_credits():
     v = 400 - 2.0 * np.arange(120)
     b = time_to_breach(v, limit=5, rising=False)

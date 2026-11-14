@@ -13,15 +13,14 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from backend.core.config import settings
 from backend.core.logger import get_logger
-from backend.services.metrics_analyzer import start_metrics_analyzer
 from backend.models.database import init_db
 
 # Import all routers (no duplicates)
 from backend.api import (
     auth, health, agent, streaming, incidents, aws,
-    inframind, opsgpt, failure, scalewise, autohealing,
+    inframind, opsgpt, scalewise, autohealing,
     buildsense, deployguard, features, registry, pipeline,
-    rootcause, services
+    rootcause, services, engine
 )
 
 logger = get_logger(__name__)
@@ -79,7 +78,7 @@ app.include_router(aws.router, prefix="/api/v1", tags=["AWS"])
 
 # ML & Intelligence
 app.include_router(inframind.router, prefix="/api/v1", tags=["Anomaly Detection"])
-app.include_router(failure.router, prefix="/api/v1", tags=["Failure Prediction"])
+app.include_router(engine.router, prefix="/api/v1", tags=["Engine"])
 app.include_router(opsgpt.router, prefix="/api/v1", tags=["Log Analysis"])
 
 # Operations
@@ -108,7 +107,9 @@ async def startup_event():
     """Initialize on startup"""
     init_db()
     logger.info(f"NeuroOps v{settings.APP_VERSION} started successfully")
-    start_metrics_analyzer(interval_seconds=60)
+    if settings.ENGINE_ENABLED:
+        from backend.api.engine import get_runner
+        get_runner().start()
 
 # ========== ROOT ENDPOINTS ==========
 @app.get("/")

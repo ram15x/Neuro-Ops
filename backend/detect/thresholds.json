@@ -1,0 +1,11 @@
+{
+ "detector": "hybrid_seasonal",
+ "budget_false_alarms_per_series_day": 0.25,
+ "calibrated_on": "simulator seeds [1, 2, 3]",
+ "thresholds": {
+  "cpu": 1.305,
+  "disk": 6.209,
+  "memory": 4.523,
+  "network": 1.385
+ }
+}

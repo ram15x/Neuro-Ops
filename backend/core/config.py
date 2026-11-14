@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     # in-memory redis for tests and demo mode, no server needed
     REDIS_FAKE: bool = False
+
+    # the engine: detect, diagnose, decide, act, verify
+    ENGINE_ENABLED: bool = True
+    ENGINE_MODE: str = "shadow"          # shadow | approval | auto
+    ENGINE_SEED: int = 7                 # which simulated fortnight to play
+    ENGINE_TICK_SECONDS: float = 1.0     # wall seconds per 5 simulated minutes
     
     @property
     def REDIS_URL(self) -> str:
