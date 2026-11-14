@@ -15,8 +15,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd -m -u 1000 neuroops && chown -R neuroops:neuroops /app
+# the demo recordings come from the simulator, so they are built into the image
+RUN python -m eval.export_replay > /dev/null
+
+# non-root user, /data is where the sqlite file and the audit log live
+RUN useradd -m -u 1000 neuroops && mkdir /data && chown -R neuroops:neuroops /app /data
+VOLUME /data
+ENV DB_URL=sqlite:////data/neuroops.db REDIS_FAKE=true
 USER neuroops
 
 # Expose port

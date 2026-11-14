@@ -1,45 +1,36 @@
-version: '3.8'
-
+# docker compose up            -> engine + dashboard on the simulated fleet, sqlite, no other services
+# docker compose --profile full up -> same, with Postgres behind it
 services:
   neuroops:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=neuroops_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - postgres
-      - redis
+      ENGINE_MODE: shadow
+      DB_URL: ${DB_URL:-sqlite:////data/neuroops.db}
+      REDIS_FAKE: "true"
+      # ENV=production makes the app refuse default secrets, set both if you turn it on
+      ENV: ${ENV:-development}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-prod}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
+    volumes:
+      - engine_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready', timeout=2).status == 200 else 1)"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
 
   postgres:
-    image: postgres:15
+    profiles: ["full"]
+    image: postgres:16
     environment:
-      - POSTGRES_DB=neuroops_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      POSTGRES_DB: neuroops
+      POSTGRES_USER: neuroops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
 
 volumes:
+  engine_data:
   postgres_data:
-  redis_data:

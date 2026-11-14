@@ -25,10 +25,20 @@ def test_protected_route_needs_token():
     assert r.status_code in (401, 403)
 
 
-def test_inframind_predict_answers():
-    r = client.post(
-        "/api/v1/inframind/predict",
-        json={"metric": "ec2_cpu", "value": 85.5, "rolling_mean": 45.2, "rolling_std": 12.3, "value_diff": 15.2},
-    )
-    # open or auth-gated, but it must not crash
-    assert r.status_code in (200, 401, 403)
+def test_old_v2_endpoints_are_off_by_default():
+    r = client.post("/api/v1/inframind/predict", json={"metric": "ec2_cpu", "value": 85.5})
+    assert r.status_code == 404
+
+
+def test_engine_history_endpoint_answers():
+    r = client.get("/api/v1/engine/history?limit=5")
+    assert r.status_code == 200
+    assert "events" in r.json()
+
+
+def test_stored_audit_events_come_back_from_history():
+    from backend.api.engine import Runner
+    r = Runner()
+    r._store_event({"ts": "2026-03-10T12:00:00", "type": "mode_changed", "simulated": True, "old": "shadow", "new": "auto"})
+    got = client.get(f"/api/v1/engine/history?run={r.seed}&limit=5").json()["events"]
+    assert got[0]["type"] == "mode_changed" and got[0]["new"] == "auto"

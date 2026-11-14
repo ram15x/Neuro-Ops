@@ -39,12 +39,19 @@ class Engine:
         self.verifications = []
         self.approvals = []
         self.audit = []
+        self.sink = None          # optional callable(event dict), used to keep the log in a database
         self._scores = {}
         self._said = {}
 
     # ---- bookkeeping ----
     def log(self, ts, kind, **data):
-        self.audit.append({"ts": pd.Timestamp(ts).isoformat(), "type": kind, "simulated": self.source.simulated, **data})
+        event = {"ts": pd.Timestamp(ts).isoformat(), "type": kind, "simulated": self.source.simulated, **data}
+        self.audit.append(event)
+        if self.sink:
+            try:
+                self.sink(event)
+            except Exception as e:   # a full disk must not stop the healing loop
+                print(f"could not store audit event: {e}")
 
     def _members(self, target):
         return [i.id for i in self.instances if i.role == target] or [target]

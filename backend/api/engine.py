@@ -30,6 +30,7 @@ class Runner:
         self.thread = None
         self.stop = threading.Event()
         self.seed = settings.ENGINE_SEED
+        self.store = settings.ENGINE_STORE_EVENTS
         self._new_run()
 
     def _new_run(self):
@@ -37,7 +38,20 @@ class Runner:
         mode = getattr(self, "engine", None).cfg.mode if getattr(self, "engine", None) else settings.ENGINE_MODE
         self.fleet = fleet
         self.engine = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode))
+        if self.store:
+            self.engine.sink = self._store_event
         self.step = self.engine.warm
+
+    def _store_event(self, e):
+        from backend.models.database import EngineEvent, SessionLocal
+        db = SessionLocal()
+        try:
+            rest = {k: v for k, v in e.items() if k not in ("ts", "type", "simulated", "incident")}
+            db.add(EngineEvent(run=self.seed, at=e["ts"], kind=e["type"], incident=e.get("incident"),
+                               simulated=e["simulated"], payload=rest))
+            db.commit()
+        finally:
+            db.close()
 
     def tick(self):
         with self.lock:
@@ -148,6 +162,22 @@ def audit(limit: int = 100):
     r = get_runner()
     with r.lock:
         return {"simulated": True, "events": r.engine.audit[-limit:][::-1]}
+
+
+@router.get("/engine/history")
+def history(limit: int = 200, run: int = None):
+    """the audit log as stored in the database, so it is still here after a restart"""
+    from backend.models.database import EngineEvent, SessionLocal
+    db = SessionLocal()
+    try:
+        q = db.query(EngineEvent)
+        if run is not None:
+            q = q.filter(EngineEvent.run == run)
+        rows = q.order_by(EngineEvent.id.desc()).limit(max(1, min(limit, 1000))).all()
+        return {"events": [{"id": x.id, "run": x.run, "at": x.at, "type": x.kind, "incident": x.incident,
+                            "simulated": x.simulated, **(x.payload or {})} for x in rows]}
+    finally:
+        db.close()
 
 
 @router.get("/engine/approvals")

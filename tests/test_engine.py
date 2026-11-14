@@ -128,3 +128,23 @@ def test_engine_api(monkeypatch):
     # changing mode or answering approvals needs a login
     assert client.post("/api/v1/engine/mode", json={"mode": "auto"}).status_code == 401
     assert client.post("/api/v1/engine/approvals/1/approve").status_code == 401
+
+
+def test_audit_events_reach_the_sink():
+    fleet = build_fleet(seed=21)
+    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode="shadow"))
+    got = []
+    eng.sink = got.append
+    eng.log(T, "mode_changed", old="shadow", new="auto", by="test")
+    assert got and got[0]["type"] == "mode_changed"
+
+
+def test_a_broken_sink_does_not_stop_the_engine():
+    fleet = build_fleet(seed=21)
+    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode="shadow"))
+
+    def boom(_):
+        raise RuntimeError("disk full")
+    eng.sink = boom
+    eng.log(T, "mode_changed", old="a", new="b", by="test")
+    assert len(eng.audit) == 1

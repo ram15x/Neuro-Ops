@@ -230,3 +230,17 @@ def get_db():
         yield db
     finally:
         db.close()
+
+class EngineEvent(Base):
+    """One line of the engine's audit log, kept so it survives a restart.
+    Only the log is stored. Open incidents are not restored, the engine starts a fresh run."""
+    __tablename__ = "engine_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run = Column(Integer, index=True)            # the simulator seed, or 0 for a real account
+    at = Column(String)                          # engine time (simulated time in demo mode)
+    kind = Column(String, index=True)
+    incident = Column(Integer, nullable=True)
+    simulated = Column(Boolean, default=True)
+    payload = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)

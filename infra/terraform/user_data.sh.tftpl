@@ -1,0 +1,15 @@
+#!/bin/bash
+# installs docker and the CloudWatch agent, then runs the engine container.
+# secrets are read from SSM Parameter Store at boot so they never sit in terraform state.
+set -euo pipefail
+dnf install -y docker amazon-cloudwatch-agent
+systemctl enable --now docker
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c ssm:${cw_param}
+get() { aws ssm get-parameter --region ${region} --name "/${name}/$1" --with-decryption --query Parameter.Value --output text; }
+mkdir -p /var/lib/neuroops
+docker run -d --name neuroops --restart unless-stopped -p 8000:8000 \
+  -v /var/lib/neuroops:/data \
+  -e DB_URL=sqlite:////data/neuroops.db -e REDIS_FAKE=true \
+  -e ENV=production -e ENGINE_MODE=${mode} -e AWS_REGION=${region} \
+  -e JWT_SECRET="$(get jwt-secret)" -e DEFAULT_ADMIN_PASSWORD="$(get admin-password)" \
+  ${image_uri}
