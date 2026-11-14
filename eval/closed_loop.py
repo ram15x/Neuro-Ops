@@ -14,7 +14,7 @@ import pandas as pd
 
 from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
-from backend.engine.policy import ACTIONS, PolicyConfig
+from backend.engine.policy import PolicyConfig
 from backend.engine.sources import SimSource
 from backend.sim.aws_fleet import build_fleet
 
@@ -34,7 +34,7 @@ EXPECTED = {
 
 def _run(seed, mode, hard=False):
     fleet = build_fleet(seed=seed, hard=hard)
-    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode),
+    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode), use_logs=False,
                  auto_approve_after=3 if mode == "auto" else None).run()
     return fleet, eng
 
@@ -128,6 +128,5 @@ def markdown(res, title="Closed loop on the simulated fleet"):
 
 
 if __name__ == "__main__":
-    import json
     print(markdown(evaluate(), "Clean faults"))
     print(markdown(evaluate(hard=True), "Hard mode"))

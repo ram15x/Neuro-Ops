@@ -14,6 +14,7 @@ from backend.data.loaders import ROOT
 from backend.engine.engine import Engine
 from backend.engine.executors import SimExecutor
 from backend.engine.export import snapshot
+from backend.engine.notify import Notifier, RecordingNotifier
 from backend.engine.policy import PolicyConfig
 from backend.engine.sources import SimSource
 from backend.sim.aws_fleet import build_fleet
@@ -26,7 +27,7 @@ LEAD_IN = 288   # show one quiet day before the engine starts watching
 
 def record(scenario, mode):
     fleet = build_fleet(seed=SEEDS[scenario], hard=scenario == "hard")
-    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode),
+    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode), notifier=Notifier([RecordingNotifier()]),
                  auto_approve_after=3 if mode == "auto" else None).run()
     snap = snapshot(fleet, eng, eng.warm - LEAD_IN, fleet.n, scenario)
     snap["meta"]["watching_from"] = LEAD_IN

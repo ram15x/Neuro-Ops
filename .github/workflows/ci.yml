@@ -6,6 +6,14 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ruff
+      # real errors only (syntax, undefined names, unused imports) on the maintained code
+      - run: ruff check --select E9,F backend/engine backend/detect backend/logs backend/sim backend/storage backend/api/engine.py backend/main.py eval tests
+
   test:
     runs-on: ubuntu-latest
     steps:

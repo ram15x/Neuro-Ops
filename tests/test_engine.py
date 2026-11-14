@@ -148,3 +148,33 @@ def test_a_broken_sink_does_not_stop_the_engine():
     eng.sink = boom
     eng.log(T, "mode_changed", old="a", new="b", by="test")
     assert len(eng.audit) == 1
+
+
+def _run_with_alerts(mode):
+    from backend.engine.notify import Notifier, RecordingNotifier
+    fleet = build_fleet(seed=21)
+    rec = RecordingNotifier()
+    eng = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig(mode=mode), notifier=Notifier([rec]),
+                 auto_approve_after=3 if mode == "auto" else None)
+    eng.run(eng.warm, eng.warm + 288 * 5)
+    return eng, rec
+
+
+def test_a_person_is_told_when_the_engine_runs_out_of_fixes_or_needs_approval():
+    eng, rec = _run_with_alerts("auto")
+    kinds = {e["why"] for e in eng.audit if e["type"] == "notified"}
+    assert kinds & {"escalated", "approval"}
+    assert all(a["subject"].startswith("[SIMULATED]") for a in rec.sent)
+
+
+def test_shadow_mode_still_alerts_on_critical_incidents():
+    eng, rec = _run_with_alerts("shadow")
+    assert any(e["why"] == "shadow" for e in eng.audit if e["type"] == "notified")
+
+
+def test_incidents_carry_the_log_lines_that_stood_out():
+    eng, _ = _run_with_alerts("shadow")
+    assert any(i.logs for i in eng.incidents)
+    for i in eng.incidents:
+        for c in i.logs:
+            assert c["score"] >= 3 and c["in_window"] >= 1

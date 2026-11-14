@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     ENGINE_SEED: int = 7                 # which simulated fortnight to play
     ENGINE_TICK_SECONDS: float = 1.0     # wall seconds per 5 simulated minutes
     ENGINE_STORE_EVENTS: bool = True     # write the audit log to the database
+    ARCHIVE_S3_BUCKET: str = ""           # copy the audit log here once a day when set
+    ALERT_SNS_TOPIC_ARN: str = ""         # alerts go here when set
+    ALERT_SLACK_WEBHOOK: str = ""         # and here
+    ALERT_SEND_SIMULATED: bool = False    # the simulated demo only records alerts unless this is true
+    ALERT_MAX_PER_HOUR: int = 10
+    ALERT_DASHBOARD_URL: str = ""         # linked from alert messages
     LEGACY_API_ENABLED: bool = False     # the v2 endpoints (healing, incidents, root cause...), see legacy/README.md
     
     @property

@@ -1,6 +1,6 @@
 # NeuroOps
 
-A self-healing layer for a small AWS fleet. It watches CloudWatch-style metrics, works out what kind of trouble a server is in, and fixes the safe things itself: restart a service, clean a disk, add an instance. It checks that the fix worked, undoes temporary changes, and writes down every decision with the reason.
+A self-healing and alerting layer for a small AWS fleet. It watches CloudWatch-style metrics, works out what kind of trouble a server is in, and fixes the safe things itself: restart a service, clean a disk, add an instance. It checks that the fix worked, undoes temporary changes, and writes down every decision with the reason. When it cannot fix something, it tells a person: what broke, since when, what it already tried, which log lines are new, and what to check first.
 
 I built the first version in March 2026 on the AWS free tier to learn. This version is a rebuild: honest evaluation, a simulated fleet so it can be demoed without an AWS bill, and guardrails so it is safe to leave running.
 
@@ -13,6 +13,7 @@ AWS already has CloudWatch anomaly detection, DevOps Guru, predictive scaling, a
 - A policy layer between "something looks wrong" and "do something": a ladder of fixes per fault type, cooldowns, an hourly action cap, protected tiers (the database is never touched automatically), actions that always need a person, and shadow mode as the default.
 - Verification and rollback: after an action it checks the signal went away, tries the next step if not, and puts temporary changes (extra instances, credit mode) back when the trouble ends.
 - A scorecard for the detectors themselves, on real data, so the choice of detector is measured and not assumed.
+- An alert written for the person on call, with the log lines that are new or louder than usual, grouped so 4000 lines read as a handful of kinds of line.
 - It runs anywhere, with a simulator, with no AWS account.
 
 ## How it works
@@ -25,6 +26,8 @@ CloudWatch) forecast   the trouble  + mode     or AWS      work?
 ```
 
 - Signals: an anomaly score (the default detector, `hybrid_seasonal`, averages a z-score, an Isolation Forest and a time-of-day band) plus a time-to-breach forecast for slow ramps like disks and memory leaks.
+- Logs: lines are grouped by shape (numbers, ids and hosts masked), and the clusters that are new or much louder than the day before are attached to the incident. See [docs/logs.md](docs/logs.md).
+- Alerts: when the engine runs out of safe fixes, needs an approval, or sees a critical incident in shadow mode, it sends one message per incident (SNS, Slack, or a recorder in the demo) and one more when it resolves. An hourly cap keeps it from becoming noise.
 - Diagnosis: plain rules. A CPU rise across a whole tier is load, on one box it is a runaway process, and so on.
 - Policy: three modes. Shadow records what it would do. Approval waits for a person on every action. Auto runs what the guardrails allow and asks for the rest.
 - Details are in [docs/architecture.md](docs/architecture.md).
@@ -38,6 +41,8 @@ uvicorn backend.main:app --reload     # API, plus the dashboard at /dashboard/
 ```
 
 Or `docker compose up`. Nothing else is needed: it uses sqlite and an in-memory Redis. API docs are at `/docs`.
+
+CI runs lint, tests, the scorecard, a Docker build that boots and serves the dashboard, and `terraform validate`. Pushes publish an image to ghcr.io (`.github/workflows/release.yml`). That only publishes an image, nothing deploys to AWS by itself.
 
 Tests: `pip install -r requirements-dev.txt && pytest`. The detector scorecard: `python -m eval.scorecard` (about 7 minutes).
 
@@ -53,8 +58,10 @@ Full tables are in [docs/scorecard.md](docs/scorecard.md). The short version:
 ## What is not proven
 
 - The AWS executors and the CloudWatch source are tested against moto and botocore stubs only. They have never touched a real account.
-- The CloudWatch source exists but is not wired into the running loop. The running engine uses the simulated fleet.
-- Only the audit log is stored in the database. Open incidents are not restored after a restart.
+- The CloudWatch metrics source and the CloudWatch Logs source exist but are not wired into the running loop. The running engine uses the simulated fleet, and its alerts are only recorded, not sent, unless you set `ALERT_SEND_SIMULATED=true`.
+- The log lines in the simulator are written by me, so tests on them check the mechanics. The grouping itself was checked on real labelled logs (see docs/logs.md).
+- Alerts reach SNS and Slack only through code tested with moto and a stub. I have not sent a real email.
+- The audit log is stored in the database, and optionally copied to S3 once a simulated day (`ARCHIVE_S3_BUCKET`, tested with moto only). That is all that is stored. Open incidents are not restored after a restart.
 - The real EC2 capture I made in March (`data/real_training_data.csv`) is about 14 hours of points on one instance, too short to score.
 - The old v2 endpoints are still in `backend/api/` but are off unless `LEGACY_API_ENABLED=true`. Some were built on a `cpu > 80` label, which is circular. See [docs/model-card.md](docs/model-card.md).
 - `infra/terraform` has never been applied. CI only validates it.
@@ -65,7 +72,9 @@ Full tables are in [docs/scorecard.md](docs/scorecard.md). The short version:
 ```
 backend/engine   signals, diagnosis, policy, executors, the loop
 backend/detect   detectors and the forecast
-backend/sim      the simulated AWS fleet
+backend/logs     log grouping (Drain-style) and "what is new" ranking
+backend/storage  S3 archive of the audit log
+backend/sim      the simulated AWS fleet and its logs
 backend/api      FastAPI routes (engine, auth, health)
 dashboard        static dashboard, plays recordings or talks to the live API
 eval             scorecard, calibration, closed-loop test, demo recordings

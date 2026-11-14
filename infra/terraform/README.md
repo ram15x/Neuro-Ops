@@ -4,6 +4,8 @@ One engine instance, a locked-down IAM role, the CloudWatch agent config for mem
 
 This has never been applied. CI runs `terraform fmt -check` and `terraform validate`, nothing more. Read the plan before you apply it.
 
+It also creates an encrypted, versioned S3 bucket for the audit log (30 days to infrequent access, deleted after a year) and passes its name and the SNS topic to the container. The container only sends alerts for a real account. While the engine runs on the simulated fleet it records them and sends nothing.
+
 What to know before using it:
 - The engine can only change instances and Auto Scaling groups tagged `neuroops:managed=true`. Tag only what you want it to touch.
 - `ec2:ModifyInstanceCreditSpecification` cannot be scoped by tag in IAM, so it is open. The engine only calls it for an action that always needs a person's approval.

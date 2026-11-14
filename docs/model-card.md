@@ -18,6 +18,10 @@ The default path has no pre-trained model. Detection averages a rolling z-score,
 - Simulated data: a 7-instance fleet with injected faults, 3 seeds for the detector table.
 - Thresholds are tuned on half of each series and scored on the other half. Alerts within an hour count as one episode. Results are reported at fixed false-alarm budgets.
 
+## Log grouping
+
+Not a trained model: a small version of the Drain method. See logs.md for the check on real labelled logs. It does not read meaning, so two different problems that print the same line look the same.
+
 ## Known limits
 
 - Recall on real data is about half of labelled windows at 0.25 false alarms per series-day.
