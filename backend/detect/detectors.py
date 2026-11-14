@@ -12,6 +12,18 @@ from sklearn.ensemble import IsolationForest
 DAY = 288  # 5-minute points in a day
 
 
+def prepare(values, kind):
+    """
+    Traffic is multiplicative: it doubles or drops to a tenth, it does not move
+    by a fixed number of bytes. On a log scale a drop to 3% is as loud as a
+    30x spike, which is what we want. Everything else is used as it is.
+    """
+    values = np.asarray(values, dtype=float)
+    if kind == "network":
+        return np.log1p(np.clip(values, 0, None))
+    return values
+
+
 def static_threshold(values, timestamps=None, n_warm=0):
     # the classic "alert when cpu > X". the score is just the value
     return np.asarray(values, dtype=float)
@@ -39,14 +51,27 @@ def seasonal_band(values, timestamps, n_warm=0):
     days. This is the idea behind CloudWatch's anomaly band, though theirs is
     a trained model and this is a simple stand-in.
     """
-    s = pd.Series(np.asarray(values, dtype=float))
+    v = np.asarray(values, dtype=float)
+    s = pd.Series(v)
     ts = pd.DatetimeIndex(timestamps)
-    slot = pd.Series(np.asarray(ts.hour * 12 + ts.minute // 5))
-    g = s.groupby(slot)
-    med = g.transform(lambda x: x.shift(1).expanding(min_periods=3).median())
-    q75 = g.transform(lambda x: x.shift(1).expanding(min_periods=3).quantile(0.75))
-    q25 = g.transform(lambda x: x.shift(1).expanding(min_periods=3).quantile(0.25))
-    spread = (q75 - q25) / 1.349
+    slot = np.asarray(ts.hour * 12 + ts.minute // 5)
+    # lay the series out as a table: one row per time-of-day slot, one column
+    # per earlier visit to that slot. then "what did this slot look like before"
+    # is just the columns to the left.
+    nth = pd.Series(slot).groupby(slot).cumcount().to_numpy()
+    table = np.full((288, nth.max() + 1), np.nan)
+    table[slot, nth] = v
+    med = np.full(len(v), np.nan)
+    spread = np.full(len(v), np.nan)
+    for k in range(3, table.shape[1]):
+        rows = np.flatnonzero(nth == k)
+        past = table[slot[rows], :k]
+        # the nan-aware version is much slower, only needed when the grid has holes
+        pct = np.nanpercentile if np.isnan(past).any() else np.percentile
+        q25, q50, q75 = pct(past, [25, 50, 75], axis=1)
+        med[rows] = q50
+        spread[rows] = (q75 - q25) / 1.349
+    med, spread = pd.Series(med), pd.Series(spread)
     # with few days of history the spread can be tiny, so floor it
     floor = 0.25 * s.shift(1).expanding(min_periods=24).std()
     spread = np.maximum(spread, floor).replace(0, np.nan)
@@ -54,6 +79,9 @@ def seasonal_band(values, timestamps, n_warm=0):
     # no seasonal history yet for the first days: fall back to the z-score
     z = pd.Series(rolling_zscore(values))
     return score.fillna(z).fillna(0).to_numpy()
+
+
+_forests = {}
 
 
 def _features(values):
@@ -70,7 +98,14 @@ def isolation_forest(values, timestamps=None, n_warm=0):
     # same four features the original NeuroOps model used, trained on the warm-up only
     X = _features(values)
     n_warm = max(n_warm, 50)
-    model = IsolationForest(n_estimators=100, random_state=0).fit(X[:n_warm])
+    # the model only ever sees the warm-up, so the same warm-up means the same
+    # model. keeping it saves refitting every time the engine rescoring runs.
+    key = (n_warm, hash(X[:n_warm].tobytes()))
+    model = _forests.get(key)
+    if model is None:
+        if len(_forests) > 256:
+            _forests.clear()
+        model = _forests[key] = IsolationForest(n_estimators=100, random_state=0).fit(X[:n_warm])
     return -model.score_samples(X)
 
 

@@ -8,6 +8,8 @@ os.environ.setdefault("DB_URL", f"sqlite:///{_db}")
 os.environ.setdefault("REDIS_FAKE", "true")
 os.environ.setdefault("JWT_SECRET", "test-secret-not-for-real-use")
 os.environ.setdefault("AUTO_HEALING_ENABLED", "false")
+# the engine's background clock is driven by hand in tests
+os.environ.setdefault("ENGINE_ENABLED", "false")
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

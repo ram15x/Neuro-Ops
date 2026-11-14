@@ -32,6 +32,14 @@ def _fit(window, limit, rising):
     if slope <= 0 or lo <= 0:
         # the slow end of the range is flat or going the other way: no clear trend
         return None
+    # a single jump in the middle of the window also fits a rising line, but
+    # at least one half on its own is flat. a real leak climbs in both halves.
+    half = len(window) // 2
+    sign = 1 if rising else -1
+    older = theilslopes(window[:half], x[:half])[0] * sign
+    recent = theilslopes(window[half:], x[half:])[0] * sign
+    if min(older, recent) < 0.4 * slope:
+        return None
     return gap / slope, gap / hi, gap / lo
 
 
