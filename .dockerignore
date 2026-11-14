@@ -1,5 +1,16 @@
+.git
+.github
 neuroops_env/
 __pycache__/
 *.pyc
 .env
-.git
+.pytest_cache
+tests/
+legacy/
+research/
+infra/
+docs/
+data/
+training_data/
+datasets/turbofan*
+dashboard/replay/

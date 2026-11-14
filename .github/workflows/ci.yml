@@ -44,8 +44,19 @@ jobs:
           docker run -d --name neuroops -p 8000:8000 \
             -e DB_URL=sqlite:////tmp/neuroops.db -e REDIS_FAKE=true neuroops:ci
           for i in $(seq 1 30); do
-            curl -fs http://localhost:8000/ping && exit 0
+            curl -fs http://localhost:8000/ready && curl -fs http://localhost:8000/dashboard/ >/dev/null && exit 0
             sleep 2
           done
           docker logs neuroops
           exit 1
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      # nothing is applied, this only checks the files are well formed
+      - run: terraform -chdir=infra/terraform fmt -check -recursive
+        continue-on-error: true   # hand-written, formatting is advisory
+      - run: terraform -chdir=infra/terraform init -backend=false
+      - run: terraform -chdir=infra/terraform validate

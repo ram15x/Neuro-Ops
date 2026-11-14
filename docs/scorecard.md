@@ -109,9 +109,9 @@ The real EC2 capture in `data/real_training_data.csv` is not scored: it holds ab
 
 | Fault | Events | Warned before breach | Median warning lead (min) | Median ETA error (min) |
 |---|---|---|---|---|
-| memory_leak | 6 | 6 | 302.5 | 29.248740613719928 |
-| disk_fill | 6 | 6 | 242.5 | 32.44339750542296 |
-| credit_drain | 6 | 6 | 327.5 | 2.4208108835478015 |
+| memory_leak | 6 | 6 | 302.5 | 29.2 |
+| disk_fill | 6 | 6 | 242.5 | 32.4 |
+| credit_drain | 6 | 6 | 327.5 | 2.4 |
 
 False warnings on quiet time: 0 over 645 series-days (0.000 per series-day).
 

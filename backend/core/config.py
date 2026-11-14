@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     ENGINE_MODE: str = "shadow"          # shadow | approval | auto
     ENGINE_SEED: int = 7                 # which simulated fortnight to play
     ENGINE_TICK_SECONDS: float = 1.0     # wall seconds per 5 simulated minutes
+    ENGINE_STORE_EVENTS: bool = True     # write the audit log to the database
+    LEGACY_API_ENABLED: bool = False     # the v2 endpoints (healing, incidents, root cause...), see legacy/README.md
     
     @property
     def REDIS_URL(self) -> str:
@@ -317,7 +319,7 @@ def validate_config():
     
     # default secrets are fine on a laptop, never in production
     production = os.getenv("ENV") == "production"
-    if settings.JWT_SECRET == "your-secret-key-change-in-prod":
+    if settings.JWT_SECRET in ("your-secret-key-change-in-prod", ""):
         if production:
             raise ValueError("JWT_SECRET must be changed from default value!")
         # random secret per process so a forgotten default can't sign real tokens

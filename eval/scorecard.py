@@ -177,7 +177,7 @@ def evaluate_forecast(seeds=(7, 8, 9), horizon_steps=72):
                         lead[kind].append((br - first) * 5)
     return dict(
         kinds={k: dict(events=warned[k][1], warned=warned[k][0],
-                       median_eta_error_min=float(np.median(errors[k])) if errors[k] else None,
+                       median_eta_error_min=round(float(np.median(errors[k])), 1) if errors[k] else None,
                        median_warning_lead_min=float(np.median(lead[k])) if lead[k] else None) for k in targets},
         false_warnings_per_series_day=false_warn / max(quiet_days, 1e-9), false_warnings=false_warn,
         quiet_series_days=quiet_days,
