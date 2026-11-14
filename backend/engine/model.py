@@ -8,6 +8,7 @@ class Instance:
     id: str
     role: str
     itype: str
+    managed: bool = True   # carries the neuroops:managed tag, so the engine may act on it (always true in the simulator)
 
 
 @dataclass

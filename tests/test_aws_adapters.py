@@ -23,7 +23,7 @@ def aws(monkeypatch):
         ec2 = boto3.client("ec2", region_name=REGION)
         ami = ec2.describe_images(Owners=["amazon"])["Images"][0]["ImageId"]
         iid = ec2.run_instances(ImageId=ami, InstanceType="t3.small", MinCount=1, MaxCount=1, TagSpecifications=[
-            {"ResourceType": "instance", "Tags": [{"Key": "Role", "Value": "web"}]}])["Instances"][0]["InstanceId"]
+            {"ResourceType": "instance", "Tags": [{"Key": "Role", "Value": "web"}, {"Key": "neuroops:managed", "Value": "true"}]}])["Instances"][0]["InstanceId"]
         yield dict(ec2=ec2, ami=ami, iid=iid)
 
 
@@ -49,6 +49,21 @@ def test_source_reads_agent_metrics_in_time_order(aws):
     assert 40.0 <= values.min() and values.max() <= 50.0
 
 
+def test_an_untagged_instance_is_listed_but_not_managed(aws):
+    aws["ec2"].run_instances(ImageId=aws["ami"], InstanceType="t3.micro", MinCount=1, MaxCount=1)
+    got = {i.itype: i.managed for i in CloudWatchSource(REGION).instances()}
+    assert got == {"t3.small": True, "t3.micro": False}
+
+
+def test_the_executor_refuses_an_untagged_instance_and_calls_nothing(aws):
+    other = aws["ec2"].run_instances(ImageId=aws["ami"], InstanceType="t3.micro", MinCount=1, MaxCount=1)["Instances"][0]["InstanceId"]
+    for action in ("disk_cleanup", "restart_service", "reboot", "migrate_host"):
+        res = AwsExecutor(REGION).run(action, other, {})
+        assert not res["ok"] and "not tagged" in res["detail"]
+    assert boto3.client("ssm", region_name=REGION).list_commands()["Commands"] == []
+    assert _state(aws["ec2"], other)["State"]["Name"] == "running"
+
+
 def test_shell_actions_go_through_systems_manager(aws):
     ex = AwsExecutor(REGION)
     for action in ("disk_cleanup", "restart_service"):
@@ -72,9 +87,14 @@ def test_unlimited_credits_and_undo(aws):
     from botocore.stub import Stubber
     ex = AwsExecutor(REGION)
     ok = {"SuccessfulInstanceCreditSpecifications": [{"InstanceId": aws["iid"]}]}
+    # the tag check does a describe first (once for the run, once for the undo)
+    tagged = {"Reservations": [{"Instances": [{"InstanceId": aws["iid"],
+              "Tags": [{"Key": "neuroops:managed", "Value": "true"}]}]}]}
     with Stubber(ex.ec2) as stub:
+        stub.add_response("describe_instances", tagged, {"InstanceIds": [aws["iid"]]})
         stub.add_response("modify_instance_credit_specification", ok, {
             "InstanceCreditSpecifications": [{"InstanceId": aws["iid"], "CpuCredits": "unlimited"}]})
+        stub.add_response("describe_instances", tagged, {"InstanceIds": [aws["iid"]]})
         stub.add_response("modify_instance_credit_specification", ok, {
             "InstanceCreditSpecifications": [{"InstanceId": aws["iid"], "CpuCredits": "standard"}]})
         res = ex.run("enable_unlimited", aws["iid"], {})
@@ -88,7 +108,8 @@ def test_scale_out_respects_the_group_max_and_can_be_undone(aws):
     asg.create_launch_configuration(LaunchConfigurationName="lc", ImageId=aws["ami"], InstanceType="t3.small")
     asg.create_auto_scaling_group(AutoScalingGroupName="web-asg", LaunchConfigurationName="lc", MinSize=1, MaxSize=3,
                                   DesiredCapacity=2, AvailabilityZones=[REGION + "a"],
-                                  Tags=[{"Key": "Role", "Value": "web", "PropagateAtLaunch": True}])
+                                  Tags=[{"Key": "Role", "Value": "web", "PropagateAtLaunch": True},
+                                        {"Key": "neuroops:managed", "Value": "true", "PropagateAtLaunch": False}])
     ex = AwsExecutor(REGION)
     want = lambda: asg.describe_auto_scaling_groups(AutoScalingGroupNames=["web-asg"])["AutoScalingGroups"][0]["DesiredCapacity"]
     first = ex.run("scale_out", "web", {})
