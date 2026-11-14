@@ -37,7 +37,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       # reruns the detector comparison and fails if the default detector got worse
       - run: python -m eval.scorecard --check
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: scorecard
           path: docs/scorecard.md
