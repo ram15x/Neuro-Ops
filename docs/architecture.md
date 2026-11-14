@@ -4,7 +4,7 @@
 
 Every 5 minutes of data, the engine does this for each instance:
 
-1. Pull new datapoints from a source: the simulated fleet, or CloudWatch (not wired in yet).
+1. Pull new datapoints from a source: the simulated fleet, or CloudWatch (`ENGINE_SOURCE=cloudwatch`, read every 5 minutes with one paged GetMetricData call per instance). An instance with no recent data is skipped for that tick and logged once as a data gap.
 2. Score each metric. Detectors only look backwards, so scoring never uses future data.
 3. Turn scores into signals: an anomaly signal when a score stays over its threshold for a few points in a row, and a forecast signal when a ramp will hit a limit soon.
 4. Group signals into an incident with a cause, and attach the log clusters that are new or louder (see logs.md). Peers matter: if the whole tier moves together it is load, if one box moves it is that box.
@@ -15,6 +15,10 @@ Every 5 minutes of data, the engine does this for each instance:
 8. If a person is needed (no safe fix left, an approval is waiting, or a critical incident in shadow mode), send one alert per incident and kind. Send one more when it resolves.
 
 Every step is written to the audit log with its reason, including each alert.
+
+## Live mode
+
+`LiveRunner` in `backend/api/engine.py` runs the same engine on real CloudWatch data. It stays in shadow unless `ENGINE_LIVE_ACTIONS=true`, and the executor only touches instances and Auto Scaling groups tagged `neuroops:managed=true` (the same rule the IAM role enforces). After a restart the open incidents are rebuilt from the stored audit log, including temporary changes that still need undoing.
 
 ## Policy
 

@@ -157,9 +157,24 @@ class LiveRunner:
         self.engine = Engine(src, ex, self.policy, notifier=from_settings(settings, simulated=False),
                              dashboard_url=settings.ALERT_DASHBOARD_URL or None)
         if self.store:
+            self._restore()
             self.engine.sink = self._store_event
 
     _store_event = Runner._store_event
+
+    def _restore(self):
+        """after a restart, reload this run's audit lines so open incidents carry on instead of starting over"""
+        from backend.models.database import EngineEvent, SessionLocal
+        db = SessionLocal()
+        try:
+            rows = db.query(EngineEvent).filter(EngineEvent.run == self.seed, EngineEvent.simulated.is_(False)) \
+                .order_by(EngineEvent.id).all()
+            events = [{"ts": r.at, "type": r.kind, "simulated": False, "incident": r.incident, **(r.payload or {})} for r in rows]
+        finally:
+            db.close()
+        if events:
+            n = self.engine.restore(events)
+            print(f"restored {len(events)} audit lines, {n} open incidents")
 
     def now(self):
         return self.clock

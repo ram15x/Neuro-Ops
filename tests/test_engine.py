@@ -199,3 +199,20 @@ def test_prometheus_text_counts_what_happened():
     body = render(eng, 5, 0.1, 5)
     assert f"neuroops_incidents_open {len(eng.open)}" in body
     assert 'neuroops_actions_total{action=' in body
+
+
+def test_restore_rebuilds_open_incidents_and_pending_undo():
+    fleet = build_fleet(seed=7)
+    e = Engine(SimSource(fleet), SimExecutor(fleet), PolicyConfig())
+    ev = lambda ts, kind, **k: {"ts": ts, "type": kind, "simulated": True, **k}
+    e.restore([
+        ev("2026-03-10T10:00:00", "incident_opened", incident=1, cause="cpu_credit_exhaustion", target="web-1", severity="critical", evidence=["x"]),
+        ev("2026-03-10T10:05:00", "action", incident=1, action="enable_unlimited", target="web-1", ok=True, undo={"mode": "standard"}),
+        ev("2026-03-10T11:00:00", "incident_opened", incident=2, cause="disk_filling", target="db-1", severity="warning", evidence=[]),
+        ev("2026-03-10T11:10:00", "incident_resolved", incident=2, cause="disk_filling", target="db-1", how="on its own"),
+    ])
+    assert list(e.open) == [("cpu_credit_exhaustion", "web-1")]          # the resolved one stays closed
+    inc = e.open[("cpu_credit_exhaustion", "web-1")]
+    assert inc.attempts == {"enable_unlimited": 1}
+    assert inc.__dict__["undo_stack"] == [("enable_unlimited", {"mode": "standard"})]   # still owed an undo
+    assert [i.id for i in e.incidents] == [1, 2]                          # new incidents carry on from id 3

@@ -233,7 +233,7 @@ def get_db():
 
 class EngineEvent(Base):
     """One line of the engine's audit log, kept so it survives a restart.
-    Only the log is stored. Open incidents are not restored, the engine starts a fresh run."""
+    On a real account the open incidents are rebuilt from these lines after a restart."""
     __tablename__ = "engine_events"
 
     id = Column(Integer, primary_key=True, index=True)

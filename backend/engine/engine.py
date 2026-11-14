@@ -60,6 +60,50 @@ class Engine:
             except Exception as e:   # a full disk must not stop the healing loop
                 print(f"could not store audit event: {e}")
 
+    def restore(self, events):
+        """
+        Pick up after a restart: replay the stored audit lines (oldest first) to get the
+        open incidents back, with what was tried and which temporary changes still need
+        undoing. A request waiting for approval is not restored, the engine asks again.
+        """
+        by_id = {}
+        for e in events:
+            kind, n = e.get("type"), e.get("incident")
+            self.audit.append(e)
+            if kind == "incident_opened":
+                inc = Incident(n, e["cause"], "tier" if e["target"] in set(self.role.values()) and e["target"] not in self.role else "instance",
+                               e["target"], pd.Timestamp(e["ts"]).to_pydatetime(), e.get("severity", "warning"),
+                               evidence=list(e.get("evidence", [])))
+                inc.last_seen = inc.opened
+                by_id[n] = inc
+                self.incidents.append(inc)
+                self.open[(inc.cause, inc.target)] = inc
+            elif n in by_id:
+                inc = by_id[n]
+                at = pd.Timestamp(e["ts"]).to_pydatetime()
+                if kind == "action":
+                    inc.attempts[e["action"]] = inc.attempts.get(e["action"], 0) + 1
+                    inc.last_seen = max(inc.last_seen, at)
+                    if e.get("ok") and e.get("undo"):
+                        inc.__dict__.setdefault("undo_stack", []).append((e["action"], e["undo"]))
+                        if e["action"] == "scale_out":
+                            tier = inc.target if inc.scope == "tier" else self.role.get(inc.target)
+                            self.state.scaled[tier] = self.state.scaled.get(tier, 0) + 1
+                elif kind == "verified":
+                    inc.status = "mitigated"
+                elif kind in ("escalated", "reopened"):
+                    inc.status = "escalated" if kind == "escalated" else "open"
+                elif kind == "rolled_back":
+                    stack = inc.__dict__.get("undo_stack", [])
+                    inc.__dict__["undo_stack"] = [x for x in stack if x[0] != e["action"]]
+                    if e["action"] == "scale_out" and e.get("ok"):
+                        tier = inc.target if inc.scope == "tier" else self.role.get(inc.target)
+                        self.state.scaled[tier] = max(0, self.state.scaled.get(tier, 0) - 1)
+                elif kind == "incident_resolved":
+                    inc.status, inc.closed = "resolved", at
+                    self.open.pop((inc.cause, inc.target), None)
+        return len(self.open)
+
     def _logs_for(self, inc, now):
         """log lines that are new or louder in the last 30 minutes than in the day before"""
         if not self.use_logs or not hasattr(self.source, "logs"):
@@ -251,7 +295,7 @@ class Engine:
         res = self.executor.run(action, inc.target, {"step": step, "now": now})
         inc.attempts[action] = inc.attempts.get(action, 0) + 1
         self.log(now, "action", incident=inc.id, action=action, target=inc.target, ok=res["ok"],
-                 detail=res["detail"], approved_by=approved_by)
+                 detail=res["detail"], approved_by=approved_by, undo=res.get("undo"))
         if not res["ok"]:
             self._said.pop(inc.id, None)
             return

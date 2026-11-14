@@ -11,6 +11,6 @@ docker run -d --name neuroops --restart unless-stopped -p 8000:8000 \
   -v /var/lib/neuroops:/data \
   -e DB_URL=sqlite:////data/neuroops.db -e REDIS_FAKE=true \
   -e ARCHIVE_S3_BUCKET=${bucket} -e ALERT_SNS_TOPIC_ARN=${topic} \
-  -e ENV=production -e ENGINE_MODE=${mode} -e AWS_REGION=${region} \
+  -e ENV=production -e ENGINE_MODE=${mode} -e ENGINE_SOURCE=${source} -e ENGINE_LIVE_ACTIONS=${live} -e AWS_REGION=${region} \
   -e JWT_SECRET="$(get jwt-secret)" -e DEFAULT_ADMIN_PASSWORD="$(get admin-password)" \
   ${image_uri}

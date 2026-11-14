@@ -217,6 +217,8 @@ resource "aws_instance" "engine" {
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     image_uri = var.image_uri
     mode      = var.engine_mode
+    source    = var.engine_source
+    live      = var.engine_live_actions
     region    = var.region
     cw_param  = aws_ssm_parameter.cw_agent.name
     name      = var.name

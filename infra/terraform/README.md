@@ -14,5 +14,5 @@ What to know before using it:
   `aws ssm put-parameter --name /neuroops/jwt-secret --type SecureString --value "$(openssl rand -base64 48)"`
   `aws ssm put-parameter --name /neuroops/admin-password --type SecureString --value "<a long password>"`
   The app refuses to start in production with the default values.
-- The instance runs the engine against the simulated fleet unless you point it at a real account. The CloudWatch source exists in the code but is not wired into the running loop yet.
+- `engine_source` is `sim` by default. Set it to `cloudwatch` to watch the tagged instances in this account. It then stays alert-only until you also set `engine_live_actions = true`.
 - The API is plain HTTP on one allowed address. Put it behind an ALB with TLS before opening it up.
