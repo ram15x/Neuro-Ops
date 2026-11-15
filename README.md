@@ -6,7 +6,7 @@ NeuroOps is a self-healing and alerting layer for a small AWS fleet. It sits on 
 
 When it can't fix something, it tells you in plain words: what broke, since when, what it already tried, which log lines are new, and what to check first.
 
-**Live demo:** https://ram15x.github.io/NeuroOps/ (recorded runs on a simulated 7-server fleet, no backend needed)
+**Live demo:** https://ram15x.github.io/Neuro-Ops/ (recorded runs on a simulated 7-server fleet, no backend needed)
 
 ![The engine restarting a runaway process on web 3](docs/img/auto-heal.png)
 
